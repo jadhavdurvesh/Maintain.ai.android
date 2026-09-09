@@ -1,0 +1,245 @@
+name: Apply Android dashboard updates
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-dashboard-report-export.yml'
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply source changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          main = Path('app/src/main/java/com/dmjgroup/maintainai/MainActivity.kt')
+          text = main.read_text()
+
+          text = text.replace('delay(30_000)', 'delay(10_000)', 1)
+
+          old_metrics = '''        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MetricCard("Machines", machines.size.toString(), Icons.Default.Factory, Cyan, Modifier.weight(1f))
+                MetricCard("Urgent", urgent.toString(), Icons.Default.Warning, Red, Modifier.weight(1f))
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MetricCard("Open orders", openOrders.toString(), Icons.Default.Build, Amber, Modifier.weight(1f))
+                MetricCard("Healthy", healthy.toString(), Icons.Default.CheckCircle, Green, Modifier.weight(1f))
+            }
+        }'''
+
+          new_metrics = '''        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MetricCard("Machines", machines.size.toString(), Icons.Default.Factory, Cyan, Modifier.weight(1f))
+                MetricCard("Critical machines", critical.toString(), Icons.Default.Error, Red, Modifier.weight(1f))
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MetricCard("Urgent alerts", urgent.toString(), Icons.Default.Warning, Amber, Modifier.weight(1f))
+                MetricCard("Open orders", openOrders.toString(), Icons.Default.Build, Amber, Modifier.weight(1f))
+            }
+        }'''
+
+          if old_metrics not in text:
+              raise SystemExit('Dashboard metric block not found')
+          text = text.replace(old_metrics, new_metrics, 1)
+
+          old_urgent = 'val urgent = vm.data.alerts.count { it.severity?.lowercase() in setOf("critical", "high") && !it.resolved }'
+          new_urgent = 'val urgent = vm.data.alerts.count { it.severity?.lowercase() in setOf("urgent", "critical", "high") && !it.resolved }'
+          if old_urgent not in text:
+              raise SystemExit('Urgent calculation not found')
+          text = text.replace(old_urgent, new_urgent, 1)
+
+          old_reports = '                composable("reports") { ReportsScreen(vm.data) }'
+          new_reports = '''                composable("reports") {
+                    Box(Modifier.fillMaxSize()) {
+                        ReportsScreen(vm.data)
+                        ReportExportButton(vm.data, Modifier.align(Alignment.BottomEnd).padding(18.dp))
+                    }
+                }'''
+          if old_reports not in text:
+              raise SystemExit('Reports route not found')
+          text = text.replace(old_reports, new_reports, 1)
+
+          main.write_text(text)
+
+          export = Path('app/src/main/java/com/dmjgroup/maintainai/ReportExport.kt')
+          export.write_text(r'''package com.dmjgroup.maintainai
+
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.dmjgroup.maintainai.data.DashboardData
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+@Composable
+fun ReportExportButton(data: DashboardData, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val fileName = remember { "maintain-ai-report-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.getDefault()).format(Date())}.csv" }
+
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+                writer.write(buildReportCsv(data))
+            } ?: error("Could not open the selected location")
+        }.onSuccess {
+            Toast.makeText(context, "Report exported successfully", Toast.LENGTH_SHORT).show()
+        }.onFailure {
+            Toast.makeText(context, "Export failed: ${it.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    ExtendedFloatingActionButton(
+        onClick = { launcher.launch(fileName) },
+        modifier = modifier,
+        icon = { Icon(Icons.Default.FileDownload, contentDescription = null) },
+        text = { Text("Export report") }
+    )
+}
+
+private fun buildReportCsv(data: DashboardData): String {
+    val machinesById = data.machines.associateBy { it.id }
+    val avgHealth = data.machines.mapNotNull { it.healthScore }.let { values ->
+        if (values.isEmpty()) null else values.average()
+    }
+    val healthy = data.machines.count { (it.healthScore ?: 0.0) >= 70 }
+    val attention = data.machines.count { val h = it.healthScore ?: 0.0; h in 40.0..69.999 }
+    val critical = data.machines.count { (it.healthScore ?: 0.0) < 40 }
+    val urgent = data.alerts.count { it.severity?.lowercase() in setOf("urgent", "critical", "high") && !it.resolved }
+    val openAlerts = data.alerts.count { !it.resolved }
+    val openOrders = data.workOrders.count { it.status?.lowercase() != "completed" }
+
+    val out = StringBuilder()
+    out.appendLine("MAINTAIN AI REPORT")
+    out.appendLine("Generated,${csv(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()))}")
+    out.appendLine()
+
+    out.appendLine("SUMMARY")
+    out.appendLine("Metric,Value")
+    out.appendLine("Machines,${data.machines.size}")
+    out.appendLine("Average Fleet Health,${avgHealth?.let { "%.1f%%".format(it) } ?: "No data"}")
+    out.appendLine("Healthy Machines,$healthy")
+    out.appendLine("Attention Machines,$attention")
+    out.appendLine("Critical Machines,$critical")
+    out.appendLine("Urgent Alerts,$urgent")
+    out.appendLine("Open Alerts,$openAlerts")
+    out.appendLine("Open Work Orders,$openOrders")
+    out.appendLine()
+
+    out.appendLine("MACHINE HEALTH")
+    out.appendLine("ID,Machine,Machine Code,Location,Health,Status,Operating Hours,Next Maintenance")
+    data.machines.forEach { machine ->
+        val status = when {
+            machine.healthScore == null -> "NO DATA"
+            machine.healthScore >= 70 -> "HEALTHY"
+            machine.healthScore >= 40 -> "ATTENTION"
+            else -> "CRITICAL"
+        }
+        out.appendLine(listOf(
+            machine.id,
+            machine.name,
+            machine.machineCode,
+            machine.location,
+            machine.healthScore?.let { "%.1f%%".format(it) },
+            status,
+            machine.operatingHours?.let { "%.1f".format(it) },
+            machine.nextMaintenance
+        ).joinToString(",", transform = ::csv))
+    }
+    out.appendLine()
+
+    out.appendLine("ALERTS")
+    out.appendLine("ID,Machine,Severity,Type,Message,Created At,Acknowledged,Resolved")
+    data.alerts.forEach { alert ->
+        out.appendLine(listOf(
+            alert.id,
+            alert.machineId?.let { machinesById[it]?.name ?: "Machine #$it" },
+            alert.severity,
+            alert.alertType,
+            alert.message,
+            alert.createdAt,
+            alert.acknowledged,
+            alert.resolved
+        ).joinToString(",", transform = ::csv))
+    }
+    out.appendLine()
+
+    out.appendLine("WORK ORDERS")
+    out.appendLine("ID,Machine,Priority,Status,Problem,Recommended Action,Assigned To,Created At,Completed At,Resolution Notes")
+    data.workOrders.forEach { order ->
+        out.appendLine(listOf(
+            "WO-${order.id}",
+            machinesById[order.machineId]?.name ?: "Machine #${order.machineId}",
+            order.priority,
+            order.status,
+            order.problem,
+            order.recommendedActions,
+            order.assignedTo,
+            order.createdAt,
+            order.completedAt,
+            order.resolutionNotes
+        ).joinToString(",", transform = ::csv))
+    }
+    out.appendLine()
+
+    out.appendLine("AI INSIGHTS")
+    out.appendLine("ID,Machine,Model,Version,Status,Risk Score,Anomaly Score,Confidence,Failure Window,Diagnosis,Recommended Action,Generated At")
+    data.aiInsights.forEach { insight ->
+        out.appendLine(listOf(
+            insight.id,
+            insight.machineName ?: insight.machineId?.let { machinesById[it]?.name ?: "Machine #$it" },
+            insight.modelName,
+            insight.modelVersion,
+            insight.status,
+            insight.riskScore,
+            insight.anomalyScore,
+            insight.confidence,
+            insight.predictedFailureWindow,
+            insight.diagnosis,
+            insight.recommendedAction,
+            insight.generatedAt
+        ).joinToString(",", transform = ::csv))
+    }
+
+    return out.toString()
+}
+
+private fun csv(value: Any?): String = "\"${value?.toString()?.replace("\"", "\"\"")?.replace("\n", " ") ?: ""}\""
+''')
+
+          # Remove this one-shot workflow in the same commit so it does not remain in the repo.
+          workflow = Path('.github/workflows/apply-dashboard-report-export.yml')
+          workflow.unlink()
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/dmjgroup/maintainai/MainActivity.kt app/src/main/java/com/dmjgroup/maintainai/ReportExport.kt .github/workflows/apply-dashboard-report-export.yml
+          git commit -m "Improve Android refresh urgency and report export"
+          git push
