@@ -29,21 +29,25 @@ data class SensorReading(
 data class Alert(
     val id: Int = 0,
     @SerializedName("machine_id") val machineId: Int? = null,
-    val title: String? = null,
+    @SerializedName("alert_type") val alertType: String? = null,
     val message: String? = null,
     val severity: String? = null,
-    val status: String? = null,
-    @SerializedName("created_at") val createdAt: String? = null
+    @SerializedName("created_at") val createdAt: String? = null,
+    val acknowledged: Boolean = false,
+    val resolved: Boolean = false
 )
 
 data class WorkOrder(
     val id: Int = 0,
-    @SerializedName("machine_id") val machineId: Int? = null,
-    val title: String? = null,
-    val description: String? = null,
-    val status: String? = null,
+    @SerializedName("machine_id") val machineId: Int = 0,
+    val problem: String? = null,
     val priority: String? = null,
-    @SerializedName("due_date") val dueDate: String? = null
+    val status: String? = null,
+    @SerializedName("recommended_actions") val recommendedActions: String? = null,
+    @SerializedName("assigned_to") val assignedTo: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("completed_at") val completedAt: String? = null,
+    @SerializedName("resolution_notes") val resolutionNotes: String? = null
 )
 
 data class AiModelInsight(
