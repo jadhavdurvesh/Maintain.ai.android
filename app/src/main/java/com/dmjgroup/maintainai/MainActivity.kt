@@ -64,20 +64,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= 26) {
-            getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel("alerts", "MAINTAIN AI Alerts", NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "Critical maintenance and machine alerts"
-                }
-            )
-        }
+        if (Build.VERSION.SDK_INT >= 26) getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel("alerts", "MAINTAIN AI Alerts", NotificationManager.IMPORTANCE_HIGH).apply { description = "Critical maintenance and machine alerts" }
+        )
     }
 
     private fun scheduleAlertWorker() {
-        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-            "maintain-ai-alert-check", ExistingPeriodicWorkPolicy.KEEP,
-            PeriodicWorkRequestBuilder<AlertWorker>(15, TimeUnit.MINUTES).build()
-        )
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork("maintain-ai-alert-check", ExistingPeriodicWorkPolicy.KEEP, PeriodicWorkRequestBuilder<AlertWorker>(15, TimeUnit.MINUTES).build())
     }
 }
 
@@ -88,24 +81,12 @@ class MainViewModel : ViewModel() {
     var serverUrl by mutableStateOf(DEFAULT_SERVER_URL); private set
     var lastUpdated by mutableStateOf(""); private set
 
-    init {
-        viewModelScope.launch {
-            sync(silent = true)
-            while (isActive) {
-                delay(10_000)
-                sync(silent = true)
-            }
-        }
-    }
-
+    init { viewModelScope.launch { sync(true); while (isActive) { delay(10_000); sync(true) } } }
     fun updateServerUrl(url: String) { serverUrl = url.trim().ifEmpty { DEFAULT_SERVER_URL } }
-    fun refresh() = viewModelScope.launch { sync(silent = false) }
-
+    fun refresh() = viewModelScope.launch { sync(false) }
     private suspend fun sync(silent: Boolean) {
         if (!silent) { loading = true; error = null }
-        runCatching { MaintainRepository().load(serverUrl) }
-            .onSuccess { data = it; lastUpdated = "Live" }
-            .onFailure { if (!silent) error = it.message ?: "Unable to connect" }
+        runCatching { MaintainRepository().load(serverUrl) }.onSuccess { data = it; lastUpdated = "Live" }.onFailure { if (!silent) error = it.message ?: "Unable to connect" }
         if (!silent) loading = false
     }
 }
@@ -131,23 +112,15 @@ fun MaintainApp(vm: MainViewModel = viewModel()) {
 @Composable
 private fun BottomNav(nav: NavHostController) {
     val current = nav.currentBackStackEntryAsState().value?.destination?.route
-    val items = listOf(
-        "dashboard" to ("Overview" to Icons.Default.Dashboard),
-        "alerts" to ("Alerts" to Icons.Default.Notifications),
-        "analytics" to ("Analytics" to Icons.Default.Insights),
-        "workorders" to ("Work Orders" to Icons.Default.Build),
-        "more" to ("More" to Icons.Default.MoreHoriz)
-    )
+    val items = listOf("dashboard" to ("Overview" to Icons.Default.Dashboard), "alerts" to ("Alerts" to Icons.Default.Notifications), "analytics" to ("Analytics" to Icons.Default.Insights), "workorders" to ("Work Orders" to Icons.Default.Build), "more" to ("More" to Icons.Default.MoreHoriz))
     NavigationBar(containerColor = Color(0xFF0C1727), tonalElevation = 0.dp) {
-        items.forEach { (route, item) ->
-            NavigationBarItem(
-                selected = current == route,
-                onClick = { nav.navigate(route) { launchSingleTop = true; popUpTo("dashboard") { saveState = true } } },
-                icon = { Icon(item.second, contentDescription = item.first) },
-                label = { Text(item.first, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
-                colors = NavigationBarItemDefaults.colors(selectedIconColor = Cyan, selectedTextColor = Cyan, indicatorColor = Cyan.copy(alpha = .12f))
-            )
-        }
+        items.forEach { (route, item) -> NavigationBarItem(
+            selected = current == route,
+            onClick = { nav.navigate(route) { launchSingleTop = true; popUpTo("dashboard") { saveState = true } } },
+            icon = { Icon(item.second, contentDescription = item.first) },
+            label = { Text(item.first, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
+            colors = NavigationBarItemDefaults.colors(selectedIconColor = Cyan, selectedTextColor = Cyan, indicatorColor = Cyan.copy(alpha = .12f))
+        ) }
     }
 }
 
@@ -161,40 +134,15 @@ private fun DashboardScreen(vm: MainViewModel) {
     val urgent = vm.data.alerts.count { it.severity?.lowercase() in setOf("urgent", "critical", "high") && !it.resolved }
     val openOrders = vm.data.workOrders.count { it.status?.lowercase() != "completed" }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("MAINTAIN AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text("Predictive maintenance", color = TextMuted)
-                }
-                StatusPill("LIVE", Green)
-            }
-        }
+        item { Spacer(Modifier.height(8.dp)); Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("MAINTAIN AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("Predictive maintenance", color = TextMuted) }; StatusPill("LIVE", Green) } }
         if (vm.error != null) item { ErrorCard(vm.error!!) }
         item { FleetHealthCard(avg, vm.loading, vm.lastUpdated) }
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricCard("Machines", machines.size.toString(), Icons.Default.Factory, Cyan, Modifier.weight(1f))
-                MetricCard("Critical", critical.toString(), Icons.Default.Warning, Red, Modifier.weight(1f))
-                MetricCard("Urgent", urgent.toString(), Icons.Default.NotificationsActive, Amber, Modifier.weight(1f))
-            }
-        }
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricCard("Open orders", openOrders.toString(), Icons.Default.Build, Amber, Modifier.weight(1f))
-                MetricCard("Healthy", healthy.toString(), Icons.Default.CheckCircle, Green, Modifier.weight(1f))
-            }
-        }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { MetricCard("Machines", machines.size.toString(), Icons.Default.Factory, Cyan, Modifier.weight(1f)); MetricCard("Critical", critical.toString(), Icons.Default.Warning, Red, Modifier.weight(1f)); MetricCard("Urgent", urgent.toString(), Icons.Default.NotificationsActive, Amber, Modifier.weight(1f)) } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) { MetricCard("Open orders", openOrders.toString(), Icons.Default.Build, Amber, Modifier.weight(1f)); MetricCard("Healthy", healthy.toString(), Icons.Default.CheckCircle, Green, Modifier.weight(1f)) } }
         item { CompactHealthDistribution(healthy, attention, critical, machines.size) }
-        item {
-            SectionTitle("Predictive model", "Local model publication")
-            Spacer(Modifier.height(6.dp))
-            ModelPublicationCard(vm.data.modelStatus, vm.data.aiInsights)
-        }
+        item { SectionTitle("Predictive model", "Local model publication"); Spacer(Modifier.height(6.dp)); ModelPublicationCard(vm.data.modelStatus, vm.data.aiInsights) }
         item { SectionTitle("Recent work", "Latest maintenance activity") }
-        if (vm.data.workOrders.isEmpty()) item { EmptyState("No work orders", "New maintenance jobs will appear automatically.") }
-        else vm.data.workOrders.take(3).forEach { WorkOrderPreview(it, machines) }
+        if (vm.data.workOrders.isEmpty()) item { EmptyState("No work orders", "New maintenance jobs will appear automatically.") } else vm.data.workOrders.take(3).forEach { WorkOrderPreview(it, machines) }
         item { SectionTitle("Fleet", "Live machine health") }
         if (machines.isEmpty()) item { EmptyState("No machine data", "Connect to the MAINTAIN AI backend to see your fleet.") }
         items(machines, key = { it.id }) { MachineCard(it) }
@@ -204,304 +152,71 @@ private fun DashboardScreen(vm: MainViewModel) {
 
 @Composable
 private fun FleetHealthCard(avg: Double, loading: Boolean, updated: String) {
-    Card(colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(20.dp)) {
-        Column(Modifier.padding(18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Fleet health", color = TextMuted)
-                    Text(if (avg == 0.0) "—" else "%.0f%%".format(avg), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
-                }
-                Text(if (loading) "Syncing" else updated.ifEmpty { "Live" }, color = TextMuted, style = MaterialTheme.typography.labelSmall)
-            }
-            Spacer(Modifier.height(12.dp))
-            LinearProgressIndicator(progress = { (avg / 100.0).toFloat().coerceIn(0f, 1f) }, Modifier.fillMaxWidth().height(7.dp).clip(CircleShape), color = if (avg >= 70) Green else if (avg >= 40) Amber else Red, trackColor = Surface2)
-            Spacer(Modifier.height(7.dp))
-            Text("Auto-synced every 10 seconds", color = TextMuted, style = MaterialTheme.typography.bodySmall)
-        }
-    }
+    Card(colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(20.dp)) { Column(Modifier.padding(18.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Fleet health", color = TextMuted); Text(if (avg == 0.0) "—" else "%.0f%%".format(avg), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold) }; Text(if (loading) "Syncing" else updated.ifEmpty { "Live" }, color = TextMuted, style = MaterialTheme.typography.labelSmall) }
+        Spacer(Modifier.height(12.dp)); LinearProgressIndicator(progress = { (avg / 100.0).toFloat().coerceIn(0f, 1f) }, Modifier.fillMaxWidth().height(7.dp).clip(CircleShape), color = if (avg >= 70) Green else if (avg >= 40) Amber else Red, trackColor = Surface2)
+        Spacer(Modifier.height(7.dp)); Text("Auto-synced every 10 seconds", color = TextMuted, style = MaterialTheme.typography.bodySmall)
+    } }
 }
 
 @Composable
 private fun CompactHealthDistribution(healthy: Int, attention: Int, critical: Int, total: Int) {
-    Card(colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(18.dp)) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            HealthPie(healthy, attention, critical, Modifier.size(92.dp))
-            Spacer(Modifier.width(16.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text("Health distribution", fontWeight = FontWeight.Bold)
-                LegendRow("Healthy", healthy, Green, total)
-                LegendRow("Attention", attention, Amber, total)
-                LegendRow("Critical", critical, Red, total)
-            }
-        }
-    }
+    Card(colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(18.dp)) { Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        HealthPie(healthy, attention, critical, Modifier.size(92.dp)); Spacer(Modifier.width(16.dp)); Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { Text("Health distribution", fontWeight = FontWeight.Bold); LegendRow("Healthy", healthy, Green, total); LegendRow("Attention", attention, Amber, total); LegendRow("Critical", critical, Red, total) }
+    } }
 }
 
 @Composable
 private fun ModelPublicationCard(status: ModelStatus?, insights: List<AiModelInsight>) {
     val trained = status?.trained == true
     val accent = if (trained) Green else Amber
-    Card(colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(18.dp)) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(Surface2), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Psychology, null, tint = Cyan)
-                }
-                Spacer(Modifier.width(11.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("MAINTAIN AI Random Forest", fontWeight = FontWeight.Bold)
-                    Text(if (trained) "Published to mobile" else "Not published", color = accent, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                }
-                MiniChip(if (trained) "READY" else "NOT TRAINED", accent)
-            }
-            Spacer(Modifier.height(10.dp))
-            if (trained) {
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("${status?.nSamples ?: 0} samples", color = TextMuted, style = MaterialTheme.typography.bodySmall)
-                    status?.modelVersion?.let { Text("v$it", color = TextMuted, style = MaterialTheme.typography.bodySmall) }
-                    Text("${insights.size} predictions", color = TextMuted, style = MaterialTheme.typography.bodySmall)
-                }
-                status?.trainedAt?.let { Text("Trained: ${formatTimestamp(it)}", color = TextMuted, style = MaterialTheme.typography.bodySmall) }
-            } else {
-                Text(status?.reason ?: "The backend has not reported a trained model.", color = TextMuted, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-    }
+    Card(colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(18.dp)) { Column(Modifier.padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(Surface2), contentAlignment = Alignment.Center) { Icon(Icons.Default.Psychology, null, tint = Cyan) }; Spacer(Modifier.width(11.dp)); Column(Modifier.weight(1f)) { Text("MAINTAIN AI Random Forest", fontWeight = FontWeight.Bold); Text(if (trained) "Published to mobile" else "Not published", color = accent, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold) }; MiniChip(if (trained) "READY" else "NOT READY", accent) }
+        Spacer(Modifier.height(10.dp))
+        if (trained) { Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) { Text("${status?.nSamples ?: 0} samples", color = TextMuted, style = MaterialTheme.typography.bodySmall); status?.modelVersion?.let { Text("v$it", color = TextMuted, style = MaterialTheme.typography.bodySmall) }; Text("${insights.size} predictions", color = TextMuted, style = MaterialTheme.typography.bodySmall) }; status?.trainedAt?.let { Text("Trained: ${formatTimestamp(it)}", color = TextMuted, style = MaterialTheme.typography.bodySmall) } }
+        else Text(status?.reason ?: "The backend has not reported a trained model.", color = TextMuted, style = MaterialTheme.typography.bodySmall)
+    } }
 }
 
 @Composable
-private fun MetricCard(title: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, accent: Color, modifier: Modifier) {
-    Card(modifier, colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(16.dp)) {
-        Column(Modifier.padding(12.dp)) {
-            Icon(icon, null, tint = accent, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.height(7.dp))
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(title, color = TextMuted, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-        }
-    }
-}
+private fun MetricCard(title: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, accent: Color, modifier: Modifier) { Card(modifier, colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(16.dp)) { Column(Modifier.padding(11.dp)) { Icon(icon, null, tint = accent, modifier = Modifier.size(20.dp)); Spacer(Modifier.height(6.dp)); Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text(title, color = TextMuted, style = MaterialTheme.typography.labelSmall, maxLines = 1) } } }
 
 @Composable
-private fun WorkOrderPreview(order: WorkOrder, machines: List<Machine>) {
-    val machine = machines.firstOrNull { it.id == order.machineId }
-    val priority = order.priority?.uppercase() ?: "MEDIUM"
-    val color = if (priority == "CRITICAL" || priority == "HIGH") Red else Amber
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(16.dp)) {
-        Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Build, null, tint = Cyan)
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text("WO-${order.id} • ${machine?.name ?: "Machine #${order.machineId}"}", fontWeight = FontWeight.Bold)
-                Text(order.problem ?: "Maintenance work order", color = TextMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
-            }
-            MiniChip(priority, color)
-        }
-    }
-}
+private fun WorkOrderPreview(order: WorkOrder, machines: List<Machine>) { val machine = machines.firstOrNull { it.id == order.machineId }; val priority = order.priority?.uppercase() ?: "MEDIUM"; val color = if (priority == "CRITICAL" || priority == "HIGH") Red else Amber; Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(16.dp)) { Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Build, null, tint = Cyan); Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text("WO-${order.id} • ${machine?.name ?: "Machine #${order.machineId}"}", fontWeight = FontWeight.Bold); Text(order.problem ?: "Maintenance work order", color = TextMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1) }; MiniChip(priority, color) } } }
 
-@Composable
-private fun SectionTitle(title: String, subtitle: String) {
-    Column { Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text(subtitle, color = TextMuted, style = MaterialTheme.typography.bodySmall) }
-}
+@Composable private fun SectionTitle(title: String, subtitle: String) { Column { Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text(subtitle, color = TextMuted, style = MaterialTheme.typography.bodySmall) } }
 
-@Composable
-private fun HealthPie(healthy: Int, attention: Int, critical: Int, modifier: Modifier) {
-    val total = (healthy + attention + critical).coerceAtLeast(1)
-    Canvas(modifier) {
-        var start = -90f
-        listOf(healthy to Green, attention to Amber, critical to Red).forEach { (count, color) ->
-            val sweep = 360f * count / total
-            drawArc(color, start, sweep, false, style = Stroke(width = 22f, cap = StrokeCap.Butt))
-            start += sweep
-        }
-        drawCircle(Surface, radius = size.minDimension * .26f)
-    }
-}
+@Composable private fun HealthPie(healthy: Int, attention: Int, critical: Int, modifier: Modifier) { val total = (healthy + attention + critical).coerceAtLeast(1); Canvas(modifier) { var start = -90f; listOf(healthy to Green, attention to Amber, critical to Red).forEach { (count, color) -> val sweep = 360f * count / total; drawArc(color, start, sweep, false, style = Stroke(width = 22f, cap = StrokeCap.Butt)); start += sweep }; drawCircle(Surface, radius = size.minDimension * .26f) } }
 
-@Composable
-private fun LegendRow(label: String, count: Int, color: Color, total: Int) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(color)); Spacer(Modifier.width(7.dp))
-        Text(label, color = TextMuted, modifier = Modifier.width(68.dp), style = MaterialTheme.typography.bodySmall)
-        Text(count.toString(), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
-        if (total > 0) Text("  ${count * 100 / total}%", color = TextMuted, style = MaterialTheme.typography.labelSmall)
-    }
-}
+@Composable private fun LegendRow(label: String, count: Int, color: Color, total: Int) { Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(8.dp).clip(CircleShape).background(color)); Spacer(Modifier.width(7.dp)); Text(label, color = TextMuted, modifier = Modifier.width(68.dp), style = MaterialTheme.typography.bodySmall); Text(count.toString(), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall); if (total > 0) Text("  ${count * 100 / total}%", color = TextMuted, style = MaterialTheme.typography.labelSmall) } }
 
-@Composable
-private fun MachineCard(m: Machine) {
-    val health = m.healthScore
-    val status = when { health == null -> "NO DATA"; health >= 70 -> "HEALTHY"; health >= 40 -> "ATTENTION"; else -> "CRITICAL" }
-    val accent = when (status) { "HEALTHY" -> Green; "ATTENTION" -> Amber; "CRITICAL" -> Red; else -> TextMuted }
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(17.dp)) {
-        Column(Modifier.padding(15.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(Surface2), contentAlignment = Alignment.Center) { Icon(Icons.Default.PrecisionManufacturing, null, tint = Cyan) }
-                Spacer(Modifier.width(11.dp))
-                Column(Modifier.weight(1f)) { Text(m.name, fontWeight = FontWeight.SemiBold); Text(m.machineCode ?: "No machine code", color = TextMuted, style = MaterialTheme.typography.bodySmall) }
-                MiniChip(status, accent)
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Health", color = TextMuted, modifier = Modifier.width(52.dp), style = MaterialTheme.typography.bodySmall)
-                LinearProgressIndicator(progress = { ((health ?: 0.0) / 100.0).toFloat().coerceIn(0f, 1f) }, Modifier.weight(1f).height(6.dp).clip(CircleShape), color = accent, trackColor = Surface2)
-                Spacer(Modifier.width(9.dp)); Text(health?.let { "%.0f%%".format(it) } ?: "—", fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
+@Composable private fun MachineCard(m: Machine) { val health = m.healthScore; val status = when { health == null -> "NO DATA"; health >= 70 -> "HEALTHY"; health >= 40 -> "ATTENTION"; else -> "CRITICAL" }; val accent = when (status) { "HEALTHY" -> Green; "ATTENTION" -> Amber; "CRITICAL" -> Red; else -> TextMuted }; Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(17.dp)) { Column(Modifier.padding(15.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(Surface2), contentAlignment = Alignment.Center) { Icon(Icons.Default.PrecisionManufacturing, null, tint = Cyan) }; Spacer(Modifier.width(11.dp)); Column(Modifier.weight(1f)) { Text(m.name, fontWeight = FontWeight.SemiBold); Text(m.machineCode ?: "No machine code", color = TextMuted, style = MaterialTheme.typography.bodySmall) }; MiniChip(status, accent) }; Spacer(Modifier.height(12.dp)); Row(verticalAlignment = Alignment.CenterVertically) { Text("Health", color = TextMuted, modifier = Modifier.width(52.dp), style = MaterialTheme.typography.bodySmall); LinearProgressIndicator(progress = { ((health ?: 0.0) / 100.0).toFloat().coerceIn(0f, 1f) }, Modifier.weight(1f).height(6.dp).clip(CircleShape), color = accent, trackColor = Surface2); Spacer(Modifier.width(9.dp)); Text(health?.let { "%.0f%%".format(it) } ?: "—", fontWeight = FontWeight.Bold) } } } }
 
-@Composable
-private fun AiInsightCard(i: AiModelInsight) {
-    val predicted = i.predictedHealthScore ?: 0.0
-    val risk = (100.0 - predicted).coerceIn(0.0, 100.0)
-    val accent = when (i.riskLevel?.lowercase()) { "high" -> Red; "medium" -> Amber; else -> Green }
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(17.dp)) {
-        Column(Modifier.padding(15.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.AutoAwesome, null, tint = Cyan)
-                Spacer(Modifier.width(8.dp))
-                Text(i.machineName ?: "Machine", fontWeight = FontWeight.Bold, Modifier.weight(1f))
-                i.modelVersion?.let { Text("v$it", color = TextMuted, style = MaterialTheme.typography.labelSmall) }
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(i.reason ?: "Prediction available.", color = TextMuted, style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(9.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                MiniChip("Risk ${"%.0f".format(risk)}%", accent)
-                MiniChip("Predicted health ${"%.0f".format(predicted)}%", Cyan)
-            }
-        }
-    }
-}
+@Composable private fun AiInsightCard(i: AiModelInsight) { val predicted = i.predictedHealthScore ?: 0.0; val risk = (100.0 - predicted).coerceIn(0.0, 100.0); val accent = when (i.riskLevel?.lowercase()) { "high" -> Red; "medium" -> Amber; else -> Green }; Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(17.dp)) { Column(Modifier.padding(15.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.AutoAwesome, null, tint = Cyan); Spacer(Modifier.width(8.dp)); Text(i.machineName ?: "Machine", fontWeight = FontWeight.Bold, Modifier.weight(1f)); i.modelVersion?.let { Text("v$it", color = TextMuted, style = MaterialTheme.typography.labelSmall) } }; Spacer(Modifier.height(8.dp)); Text(i.reason ?: "Prediction available.", color = TextMuted, style = MaterialTheme.typography.bodySmall); Spacer(Modifier.height(9.dp)); Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { MiniChip("Risk ${"%.0f".format(risk)}%", accent); MiniChip("Predicted health ${"%.0f".format(predicted)}%", Cyan) } } } }
 
-@Composable
-private fun AlertsScreen(alerts: List<Alert>) {
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { ScreenHeader("Alerts", "Issues requiring attention") }
-        if (alerts.isEmpty()) item { EmptyState("All clear", "No alerts were returned by the backend.") }
-        items(alerts, key = { it.id }) { AlertCard(it) }
-    }
-}
+@Composable private fun AlertsScreen(alerts: List<Alert>) { LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { item { ScreenHeader("Alerts", "Issues requiring attention") }; if (alerts.isEmpty()) item { EmptyState("All clear", "No alerts were returned by the backend.") }; items(alerts, key = { it.id }) { AlertCard(it) } } }
 
-@Composable
-private fun AlertCard(a: Alert) {
-    val severity = a.severity?.uppercase() ?: "UNKNOWN"
-    val accent = when (severity) { "URGENT", "CRITICAL", "HIGH" -> Red; "MEDIUM" -> Amber; else -> Cyan }
-    val state = if (a.resolved) "RESOLVED" else if (a.acknowledged) "ACKNOWLEDGED" else "OPEN"
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(17.dp)) {
-        Row(Modifier.padding(15.dp), verticalAlignment = Alignment.Top) {
-            Icon(if (severity in setOf("URGENT", "CRITICAL", "HIGH")) Icons.Default.Warning else Icons.Default.Info, null, tint = accent)
-            Spacer(Modifier.width(11.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) { Text(a.alertType ?: "Maintenance alert", fontWeight = FontWeight.Bold, Modifier.weight(1f)); MiniChip(severity, accent) }
-                Spacer(Modifier.height(5.dp)); Text(a.message ?: "No additional information.", color = TextMuted)
-                Spacer(Modifier.height(6.dp)); Text(state, color = accent, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
+@Composable private fun AlertCard(a: Alert) { val severity = a.severity?.uppercase() ?: "UNKNOWN"; val accent = when (severity) { "URGENT", "CRITICAL", "HIGH" -> Red; "MEDIUM" -> Amber; else -> Cyan }; val state = if (a.resolved) "RESOLVED" else if (a.acknowledged) "ACKNOWLEDGED" else "OPEN"; Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(17.dp)) { Row(Modifier.padding(15.dp), verticalAlignment = Alignment.Top) { Icon(if (severity in setOf("URGENT", "CRITICAL", "HIGH")) Icons.Default.Warning else Icons.Default.Info, null, tint = accent); Spacer(Modifier.width(11.dp)); Column(Modifier.weight(1f)) { Row(verticalAlignment = Alignment.CenterVertically) { Text(a.alertType ?: "Maintenance alert", fontWeight = FontWeight.Bold, Modifier.weight(1f)); MiniChip(severity, accent) }; Spacer(Modifier.height(5.dp)); Text(a.message ?: "No additional information.", color = TextMuted); Spacer(Modifier.height(6.dp)); Text(state, color = accent, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold) } } } }
 
-@Composable
-private fun AnalyticsScreen(machines: List<Machine>, insights: List<AiModelInsight>, modelStatus: ModelStatus?) {
-    val healthy = machines.count { (it.healthScore ?: 0.0) >= 70 }
-    val attention = machines.count { val h = it.healthScore ?: 0.0; h in 40.0..69.999 }
-    val critical = machines.count { (it.healthScore ?: 0.0) < 40 }
-    val avg = machines.mapNotNull { it.healthScore }.let { if (it.isEmpty()) 0.0 else it.average() }
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { ScreenHeader("Analytics", "Fleet condition and model output") }
-        item { ReportRow("Average health", "%.1f%%".format(avg), Icons.Default.Favorite) }
-        item { CompactHealthDistribution(healthy, attention, critical, machines.size) }
-        item { SectionTitle("Local model", "Publication status") }
-        item { ModelPublicationCard(modelStatus, insights) }
-        item { SectionTitle("Predictions", "Current model output") }
-        if (insights.isEmpty()) item { EmptyState("No predictions", modelStatus?.reason ?: "The trained model has not returned predictions.") }
-        else items(insights, key = { it.machineId }) { AiInsightCard(it) }
-    }
-}
+@Composable private fun AnalyticsScreen(machines: List<Machine>, insights: List<AiModelInsight>, modelStatus: ModelStatus?) { val healthy = machines.count { (it.healthScore ?: 0.0) >= 70 }; val attention = machines.count { val h = it.healthScore ?: 0.0; h in 40.0..69.999 }; val critical = machines.count { (it.healthScore ?: 0.0) < 40 }; val avg = machines.mapNotNull { it.healthScore }.let { if (it.isEmpty()) 0.0 else it.average() }; LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { item { ScreenHeader("Analytics", "Fleet condition and model output") }; item { ReportRow("Average health", "%.1f%%".format(avg), Icons.Default.Favorite) }; item { CompactHealthDistribution(healthy, attention, critical, machines.size) }; item { SectionTitle("Local model", "Publication status") }; item { ModelPublicationCard(modelStatus, insights) }; item { SectionTitle("Predictions", "Current model output") }; if (insights.isEmpty()) item { EmptyState("No predictions", modelStatus?.reason ?: "The trained model has not returned predictions.") } else items(insights, key = { it.machineId }) { AiInsightCard(it) } } }
 
-@Composable
-private fun MoreScreen(data: DashboardData, url: String, onSave: (String) -> Unit) {
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { ScreenHeader("More", "Reports, model controls and connection") }
-        item { MoreActionCard("Reports", "Maintenance overview and exports", Icons.Default.Assessment) }
-        item { ReportsScreen(data) }
-        item { SettingsScreen(url, onSave) }
-    }
-}
+@Composable private fun MoreScreen(data: DashboardData, url: String, onSave: (String) -> Unit) { LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { item { ScreenHeader("More", "Reports and connection") }; item { MoreActionCard("Reports", "Maintenance overview", Icons.Default.Assessment) }; item { ReportHero(data.machines.size, data.machines.mapNotNull { it.healthScore }.let { if (it.isEmpty()) 0.0 else it.average() }, data.alerts.count { !it.resolved }, data.workOrders.count { it.status?.lowercase() != "completed" }) }; item { ReportRow("AI predictions", data.aiInsights.size.toString(), Icons.Default.AutoAwesome) }; item { Text("Connection", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }; item { SettingsCard(url, onSave) } } }
 
-@Composable
-private fun ReportsScreen(data: DashboardData) {
-    val avg = data.machines.mapNotNull { it.healthScore }.let { if (it.isEmpty()) 0.0 else it.average() }
-    val openAlerts = data.alerts.count { !it.resolved }
-    val openOrders = data.workOrders.count { it.status?.lowercase() != "completed" }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        ReportHero(data.machines.size, avg, openAlerts, openOrders)
-        ReportRow("Open alerts", openAlerts.toString(), Icons.Default.Notifications)
-        ReportRow("Open work orders", openOrders.toString(), Icons.Default.Build)
-        ReportRow("AI predictions", data.aiInsights.size.toString(), Icons.Default.AutoAwesome)
-    }
-}
+@Composable private fun ReportsScreen(data: DashboardData) { val avg = data.machines.mapNotNull { it.healthScore }.let { if (it.isEmpty()) 0.0 else it.average() }; val openAlerts = data.alerts.count { !it.resolved }; val openOrders = data.workOrders.count { it.status?.lowercase() != "completed" }; LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { item { ScreenHeader("Reports", "Management-ready maintenance overview") }; item { ReportHero(data.machines.size, avg, openAlerts, openOrders) }; item { ReportRow("Open alerts", openAlerts.toString(), Icons.Default.Notifications) }; item { ReportRow("Open work orders", openOrders.toString(), Icons.Default.Build) }; item { ReportRow("AI predictions", data.aiInsights.size.toString(), Icons.Default.AutoAwesome) } } }
 
-@Composable
-private fun MoreActionCard(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(17.dp)) {
-        Row(Modifier.padding(15.dp), verticalAlignment = Alignment.CenterVertically) { Icon(icon, null, tint = Cyan); Spacer(Modifier.width(11.dp)); Column { Text(title, fontWeight = FontWeight.Bold); Text(subtitle, color = TextMuted, style = MaterialTheme.typography.bodySmall) } }
-    }
-}
+@Composable private fun SettingsCard(url: String, onSave: (String) -> Unit) { var text by remember(url) { mutableStateOf(url) }; Card(colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(17.dp)) { Column(Modifier.padding(15.dp)) { OutlinedTextField(text, { text = it }, label = { Text("Server URL") }, modifier = Modifier.fillMaxWidth(), singleLine = true); Spacer(Modifier.height(10.dp)); Button(onClick = { onSave(text) }, Modifier.fillMaxWidth()) { Icon(Icons.Default.CloudDone, null); Spacer(Modifier.width(8.dp)); Text("Save & connect") }; Spacer(Modifier.height(8.dp)); Text("Default: https://maintain-ai-3.vercel.app/\nLocal phone: use your computer's LAN IP on port 8000.", color = TextMuted, style = MaterialTheme.typography.bodySmall); Spacer(Modifier.height(5.dp)); Text("Automatic sync is active while the app is open.", color = TextMuted, style = MaterialTheme.typography.bodySmall) } } }
 
-@Composable
-private fun ReportHero(machines: Int, avg: Double, alerts: Int, workOrders: Int) {
-    Card(colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(19.dp)) {
-        Column(Modifier.padding(17.dp)) {
-            Text("Maintenance snapshot", color = TextMuted)
-            Text(if (machines == 0) "—" else "%.0f%%".format(avg), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
-            Text("overall fleet health", color = TextMuted)
-            Spacer(Modifier.height(10.dp)); Text("$machines machines  •  $alerts alerts  •  $workOrders orders", color = TextMuted, style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
+@Composable private fun SettingsScreen(url: String, onSave: (String) -> Unit) { LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { item { ScreenHeader("Settings", "Connection and monitoring") }; item { SettingsCard(url, onSave) } } }
 
-@Composable
-private fun ReportRow(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(15.dp)) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) { Icon(icon, null, tint = Cyan); Spacer(Modifier.width(11.dp)); Text(label, Modifier.weight(1f)); Text(value, color = TextMuted) }
-    }
-}
+@Composable private fun ReportHero(machines: Int, avg: Double, alerts: Int, workOrders: Int) { Card(colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(19.dp)) { Column(Modifier.padding(17.dp)) { Text("Maintenance snapshot", color = TextMuted); Text(if (machines == 0) "—" else "%.0f%%".format(avg), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold); Text("overall fleet health", color = TextMuted); Spacer(Modifier.height(10.dp)); Text("$machines machines  •  $alerts alerts  •  $workOrders orders", color = TextMuted, style = MaterialTheme.typography.bodySmall) } } }
 
-@Composable
-private fun SettingsScreen(url: String, onSave: (String) -> Unit) {
-    var text by remember(url) { mutableStateOf(url) }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Connection", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        OutlinedTextField(text, { text = it }, label = { Text("Server URL") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-        Button(onClick = { onSave(text) }, Modifier.fillMaxWidth()) { Icon(Icons.Default.CloudDone, null); Spacer(Modifier.width(8.dp)); Text("Save & connect") }
-        Text("Default: https://maintain-ai-3.vercel.app/\nFor a local phone, use your computer's LAN IP on port 8000.", color = TextMuted, style = MaterialTheme.typography.bodySmall)
-        Text("Automatic sync is active while the app is open.", color = TextMuted, style = MaterialTheme.typography.bodySmall)
-    }
-}
+@Composable private fun ReportRow(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) { Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(15.dp)) { Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) { Icon(icon, null, tint = Cyan); Spacer(Modifier.width(11.dp)); Text(label, Modifier.weight(1f)); Text(value, color = TextMuted) } } }
 
-@Composable
-private fun ScreenHeader(title: String, subtitle: String) { Column { Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text(subtitle, color = TextMuted) } }
+@Composable private fun MoreActionCard(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector) { Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(17.dp)) { Row(Modifier.padding(15.dp), verticalAlignment = Alignment.CenterVertically) { Icon(icon, null, tint = Cyan); Spacer(Modifier.width(11.dp)); Column { Text(title, fontWeight = FontWeight.Bold); Text(subtitle, color = TextMuted, style = MaterialTheme.typography.bodySmall) } } } }
 
-@Composable
-private fun StatusPill(text: String, color: Color) { Surface(color = color.copy(alpha = .12f), shape = RoundedCornerShape(50)) { Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(7.dp).clip(CircleShape).background(color)); Spacer(Modifier.width(5.dp)); Text(text, color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold) } } }
-
-@Composable
-private fun MiniChip(text: String, color: Color) { Surface(color = color.copy(alpha = .12f), shape = RoundedCornerShape(50)) { Text(text, color = color, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold) } }
-
+@Composable private fun ScreenHeader(title: String, subtitle: String) { Column { Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text(subtitle, color = TextMuted) } }
+@Composable private fun StatusPill(text: String, color: Color) { Surface(color = color.copy(alpha = .12f), shape = RoundedCornerShape(50)) { Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(7.dp).clip(CircleShape).background(color)); Spacer(Modifier.width(5.dp)); Text(text, color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold) } } }
+@Composable private fun MiniChip(text: String, color: Color) { Surface(color = color.copy(alpha = .12f), shape = RoundedCornerShape(50)) { Text(text, color = color, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold) } }
 private fun formatTimestamp(value: String): String = value.replace('T', ' ').substringBefore('.')
-
-@Composable
-private fun EmptyState(title: String, subtitle: String) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(18.dp)) {
-        Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.CloudOff, null, tint = TextMuted, modifier = Modifier.size(34.dp)); Spacer(Modifier.height(8.dp)); Text(title, fontWeight = FontWeight.Bold); Text(subtitle, color = TextMuted, style = MaterialTheme.typography.bodySmall) }
-    }
-}
-
-@Composable
-private fun ErrorCard(message: String) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF321820)), shape = RoundedCornerShape(15.dp)) {
-        Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.CloudOff, null, tint = Red); Spacer(Modifier.width(9.dp)); Text("Connection problem: $message", color = Color(0xFFFFB8C0), style = MaterialTheme.typography.bodySmall) }
-    }
-}
+@Composable private fun EmptyState(title: String, subtitle: String) { Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(18.dp)) { Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.CloudOff, null, tint = TextMuted, modifier = Modifier.size(34.dp)); Spacer(Modifier.height(8.dp)); Text(title, fontWeight = FontWeight.Bold); Text(subtitle, color = TextMuted, style = MaterialTheme.typography.bodySmall) } } }
+@Composable private fun ErrorCard(message: String) { Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF321820)), shape = RoundedCornerShape(15.dp)) { Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.CloudOff, null, tint = Red); Spacer(Modifier.width(9.dp)); Text("Connection problem: $message", color = Color(0xFFFFB8C0), style = MaterialTheme.typography.bodySmall) } } }
