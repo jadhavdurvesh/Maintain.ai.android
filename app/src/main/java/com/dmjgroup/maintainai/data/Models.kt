@@ -50,25 +50,67 @@ data class WorkOrder(
     @SerializedName("resolution_notes") val resolutionNotes: String? = null
 )
 
-data class AiModelInsight(
-    val id: String? = null,
-    @SerializedName("machine_id") val machineId: Int? = null,
+data class ModelStatus(
+    val available: Boolean = false,
+    @SerializedName("trained_at") val trainedAt: String? = null,
+    @SerializedName("n_samples") val nSamples: Int? = null,
+    @SerializedName("model_version") val modelVersion: Int? = null,
+    @SerializedName("sensor_aware") val sensorAware: Boolean? = null,
+    val reason: String? = null
+)
+
+data class RiskPrediction(
+    @SerializedName("machine_id") val machineId: Int = 0,
     @SerializedName("machine_name") val machineName: String? = null,
-    @SerializedName("model_name") val modelName: String? = null,
-    @SerializedName("model_version") val modelVersion: String? = null,
-    val status: String? = null,
-    @SerializedName("risk_score") val riskScore: Double? = null,
-    @SerializedName("anomaly_score") val anomalyScore: Double? = null,
+    @SerializedName("actual_health_score") val actualHealthScore: Double? = null,
+    @SerializedName("predicted_health_score") val predictedHealthScore: Double? = null,
+    @SerializedName("risk_level") val riskLevel: String? = null,
+    val reason: String? = null
+)
+
+data class RiskPredictionsResponse(
+    val available: Boolean = false,
+    @SerializedName("trained_at") val trainedAt: String? = null,
+    @SerializedName("n_samples") val nSamples: Int? = null,
+    @SerializedName("model_version") val modelVersion: Int? = null,
+    @SerializedName("sensor_aware") val sensorAware: Boolean? = null,
+    val reason: String? = null,
+    val predictions: List<RiskPrediction> = emptyList()
+)
+
+data class TrainModelResponse(
+    val available: Boolean = false,
+    @SerializedName("trained_at") val trainedAt: String? = null,
+    @SerializedName("n_samples") val nSamples: Int? = null,
+    @SerializedName("model_version") val modelVersion: Int? = null,
+    val reason: String? = null
+)
+
+data class AiModelInsight(
+    val machineId: Int = 0,
+    val machineName: String? = null,
+    val actualHealthScore: Double? = null,
+    val predictedHealthScore: Double? = null,
+    val riskLevel: String? = null,
+    val reason: String? = null,
+    val modelVersion: Int? = null,
+    val trainedAt: String? = null,
+    val diagnosis: String? = reason,
+    val recommendedAction: String? = null,
+    val riskScore: Double? = predictedHealthScore?.let { (100.0 - it).coerceIn(0.0, 100.0) },
+    val anomalyScore: Double? = null,
     val confidence: Double? = null,
-    @SerializedName("predicted_failure_window") val predictedFailureWindow: String? = null,
-    val diagnosis: String? = null,
-    @SerializedName("recommended_action") val recommendedAction: String? = null,
-    @SerializedName("generated_at") val generatedAt: String? = null
+    val predictedFailureWindow: String? = null,
+    val modelName: String? = "MAINTAIN AI Random Forest",
+    val status: String? = riskLevel,
+    val id: String? = null,
+    val generatedAt: String? = null
 )
 
 data class DashboardData(
     val machines: List<Machine> = emptyList(),
     val alerts: List<Alert> = emptyList(),
     val workOrders: List<WorkOrder> = emptyList(),
-    val aiInsights: List<AiModelInsight> = emptyList()
+    val aiInsights: List<AiModelInsight> = emptyList(),
+    val modelStatus: ModelStatus? = null
 )
