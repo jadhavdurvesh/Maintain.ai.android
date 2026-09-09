@@ -32,6 +32,7 @@ class MaintainRepository {
         return Retrofit.Builder()
             .baseUrl(if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/")
             .client(client)
+            .addInterceptor { chain -> chain.proceed(chain.request()) }
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(MaintainApi::class.java)
@@ -42,12 +43,10 @@ class MaintainRepository {
         val machines = api.getMachines()
         val alerts = runCatching { api.getAlerts() }.getOrDefault(emptyList())
         val workOrders = runCatching { api.getWorkOrders() }.getOrDefault(emptyList())
-        return DashboardData(machines, alerts, workOrders)
+        val aiInsights = runCatching { api.getAiInsights() }.getOrDefault(emptyList())
+        return DashboardData(machines, alerts, workOrders, aiInsights)
     }
 
-    suspend fun readings(baseUrl: String, machineId: Int): List<SensorReading> {
-        return api(baseUrl).getReadings(machineId)
-    }
-
+    suspend fun readings(baseUrl: String, machineId: Int): List<SensorReading> = api(baseUrl).getReadings(machineId)
     suspend fun alerts(baseUrl: String): List<Alert> = api(baseUrl).getAlerts()
 }
