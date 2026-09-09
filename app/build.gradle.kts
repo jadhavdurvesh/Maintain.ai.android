@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.dmjgroup.maintainai"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.dmjgroup.maintainai"
