@@ -20,7 +20,9 @@ class SettingsRepository(private val context: Context) {
     val serverUrl: Flow<String> = context.settingsDataStore.data.map { it[SERVER_URL] ?: DEFAULT_SERVER_URL }
 
     suspend fun setServerUrl(url: String) {
-        val normalized = if (url.endsWith("/")) url else "$url/"
+        val normalized = url.trim().ifEmpty { DEFAULT_SERVER_URL }.let {
+            if (it.endsWith("/")) it else "$it/"
+        }
         context.settingsDataStore.edit { it[SERVER_URL] = normalized }
     }
 }
@@ -28,11 +30,13 @@ class SettingsRepository(private val context: Context) {
 class MaintainRepository {
     private fun api(baseUrl: String): MaintainApi {
         val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
-        val client = OkHttpClient.Builder().addInterceptor(logging).build()
+        val client = OkHttpClient.Builder()
+            .addInterceptor(logging)
+            .build()
+
         return Retrofit.Builder()
             .baseUrl(if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/")
             .client(client)
-            .addInterceptor { chain -> chain.proceed(chain.request()) }
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(MaintainApi::class.java)
@@ -47,6 +51,11 @@ class MaintainRepository {
         return DashboardData(machines, alerts, workOrders, aiInsights)
     }
 
-    suspend fun readings(baseUrl: String, machineId: Int): List<SensorReading> = api(baseUrl).getReadings(machineId)
+    suspend fun readings(baseUrl: String, machineId: Int): List<SensorReading> =
+        api(baseUrl).getReadings(machineId)
+
     suspend fun alerts(baseUrl: String): List<Alert> = api(baseUrl).getAlerts()
+
+    suspend fun aiInsights(baseUrl: String): List<AiModelInsight> =
+        api(baseUrl).getAiInsights()
 }
