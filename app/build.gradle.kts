@@ -24,8 +24,6 @@ android {
 
 kotlin { jvmToolchain(17) }
 
-repositories { google(); mavenCentral() }
-
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.08.00")
     implementation(composeBom)
