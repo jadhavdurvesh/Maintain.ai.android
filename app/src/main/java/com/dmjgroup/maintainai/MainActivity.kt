@@ -93,7 +93,7 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch {
             sync(silent = true)
             while (isActive) {
-                delay(30_000)
+                delay(10_000)
                 sync(silent = true)
             }
         }
@@ -409,7 +409,7 @@ private fun AiInsightCard(i: AiModelInsight) {
                 Icon(Icons.Default.AutoAwesome, null, tint = Cyan)
                 Spacer(Modifier.width(8.dp))
                 Text(i.machineName ?: "Machine", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Text(i.modelVersion ?: "AI", color = TextMuted, style = MaterialTheme.typography.labelSmall)
+                Text(i.modelVersion?.toString() ?: "AI", color = TextMuted, style = MaterialTheme.typography.labelSmall)
             }
             Spacer(Modifier.height(10.dp))
             i.diagnosis?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
