@@ -78,7 +78,7 @@ private fun WorkOrderCard(order: WorkOrder, machineName: String) {
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text("WO-${order.id}", color = WorkMuted, style = MaterialTheme.typography.labelSmall)
-                    Text(machineName, fontWeight = FontWeight.Bold)
+                    Text(machineName, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), softWrap = true)
                 }
                 Surface(color = priorityColor.copy(alpha = .13f), shape = RoundedCornerShape(50)) {
                     Text(priority, color = priorityColor, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
