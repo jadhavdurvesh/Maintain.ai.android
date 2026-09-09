@@ -30,10 +30,7 @@ class SettingsRepository(private val context: Context) {
 class MaintainRepository {
     private fun api(baseUrl: String): MaintainApi {
         val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
-        val client = OkHttpClient.Builder()
-            .addInterceptor(logging)
-            .build()
-
+        val client = OkHttpClient.Builder().addInterceptor(logging).build()
         return Retrofit.Builder()
             .baseUrl(if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/")
             .client(client)
@@ -47,15 +44,28 @@ class MaintainRepository {
         val machines = api.getMachines()
         val alerts = runCatching { api.getAlerts() }.getOrDefault(emptyList())
         val workOrders = runCatching { api.getWorkOrders() }.getOrDefault(emptyList())
-        val aiInsights = runCatching { api.getAiInsights() }.getOrDefault(emptyList())
-        return DashboardData(machines, alerts, workOrders, aiInsights)
+        val modelStatus = runCatching { api.getModelStatus() }.getOrNull()
+        val aiInsights = runCatching {
+            val response = api.getRiskPredictions()
+            response.predictions.map { prediction ->
+                AiModelInsight(
+                    machineId = prediction.machineId,
+                    machineName = prediction.machineName,
+                    actualHealthScore = prediction.actualHealthScore,
+                    predictedHealthScore = prediction.predictedHealthScore,
+                    riskLevel = prediction.riskLevel,
+                    reason = prediction.reason,
+                    modelVersion = response.modelVersion,
+                    trainedAt = response.trainedAt
+                )
+            }
+        }.getOrDefault(emptyList())
+        return DashboardData(machines, alerts, workOrders, aiInsights, modelStatus)
     }
 
-    suspend fun readings(baseUrl: String, machineId: Int): List<SensorReading> =
-        api(baseUrl).getReadings(machineId)
-
+    suspend fun readings(baseUrl: String, machineId: Int): List<SensorReading> = api(baseUrl).getReadings(machineId)
     suspend fun alerts(baseUrl: String): List<Alert> = api(baseUrl).getAlerts()
-
-    suspend fun aiInsights(baseUrl: String): List<AiModelInsight> =
-        api(baseUrl).getAiInsights()
+    suspend fun modelStatus(baseUrl: String): ModelStatus = api(baseUrl).getModelStatus()
+    suspend fun riskPredictions(baseUrl: String): RiskPredictionsResponse = api(baseUrl).getRiskPredictions()
+    suspend fun trainModel(baseUrl: String): TrainModelResponse = api(baseUrl).trainModel()
 }
