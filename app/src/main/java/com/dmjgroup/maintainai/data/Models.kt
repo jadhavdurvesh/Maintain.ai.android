@@ -50,8 +50,9 @@ data class WorkOrder(
     @SerializedName("resolution_notes") val resolutionNotes: String? = null
 )
 
+/** Mirrors GET /api/analytics/model-status. */
 data class ModelStatus(
-    val available: Boolean = false,
+    val trained: Boolean = false,
     @SerializedName("trained_at") val trainedAt: String? = null,
     @SerializedName("n_samples") val nSamples: Int? = null,
     @SerializedName("model_version") val modelVersion: Int? = null,
@@ -79,10 +80,10 @@ data class RiskPredictionsResponse(
 )
 
 data class TrainModelResponse(
-    val available: Boolean = false,
-    @SerializedName("trained_at") val trainedAt: String? = null,
+    val trained: Boolean = false,
     @SerializedName("n_samples") val nSamples: Int? = null,
     @SerializedName("model_version") val modelVersion: Int? = null,
+    @SerializedName("sensor_aware") val sensorAware: Boolean? = null,
     val reason: String? = null
 )
 
@@ -98,13 +99,7 @@ data class AiModelInsight(
     val diagnosis: String? = reason,
     val recommendedAction: String? = null,
     val riskScore: Double? = predictedHealthScore?.let { (100.0 - it).coerceIn(0.0, 100.0) },
-    val anomalyScore: Double? = null,
-    val confidence: Double? = null,
-    val predictedFailureWindow: String? = null,
-    val modelName: String? = "MAINTAIN AI Random Forest",
-    val status: String? = riskLevel,
-    val id: String? = null,
-    val generatedAt: String? = null
+    val modelName: String? = "MAINTAIN AI Random Forest"
 )
 
 data class DashboardData(
