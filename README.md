@@ -1,5 +1,7 @@
 # MAINTAIN AI Android
 
+[![Ask DeepWiki](https://devin.ai/assets/askdeepwiki.png)](https://deepwiki.com/jadhavdurvesh/Maintain.ai.android)
+
 Native Android companion app for **MAINTAIN AI**.
 
 ## Purpose
