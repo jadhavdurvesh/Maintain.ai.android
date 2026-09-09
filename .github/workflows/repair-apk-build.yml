@@ -1,0 +1,57 @@
+name: Repair APK Build
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch Android build and Kotlin source
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          gradle = Path("app/build.gradle.kts")
+          text = gradle.read_text()
+          text = text.replace("compileSdk = 36", "compileSdk = 37", 1)
+          gradle.write_text(text)
+
+          workflow = Path(".github/workflows/build-apk.yml")
+          text = workflow.read_text()
+          text = text.replace('packages: "platform-tools platforms;android-36 build-tools;35.0.0"', 'packages: "platform-tools platforms;android-37.0 build-tools;35.0.0"', 1)
+          workflow.write_text(text)
+
+          main = Path("app/src/main/java/com/dmjgroup/maintainai/MainActivity.kt")
+          text = main.read_text()
+          old_work = 'if (vm.data.workOrders.isEmpty()) item { EmptyState("No work orders", "New maintenance jobs will appear automatically.") } else vm.data.workOrders.take(3).forEach { WorkOrderPreview(it, machines) }'
+          new_work = 'if (vm.data.workOrders.isEmpty()) item { EmptyState("No work orders", "New maintenance jobs will appear automatically.") } else items(vm.data.workOrders.take(3), key = { it.id }) { WorkOrderPreview(it, machines) }'
+          if old_work not in text:
+              raise SystemExit("Expected work-order LazyColumn expression was not found")
+          text = text.replace(old_work, new_work, 1)
+
+          old_alert = 'Text(a.alertType ?: "Maintenance alert", fontWeight = FontWeight.Bold, Modifier.weight(1f));'
+          new_alert = 'Text(a.alertType ?: "Maintenance alert", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold);'
+          if old_alert not in text:
+              raise SystemExit("Expected AlertCard Text call was not found")
+          text = text.replace(old_alert, new_alert, 1)
+          main.write_text(text)
+          PY
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/build.gradle.kts .github/workflows/build-apk.yml app/src/main/java/com/dmjgroup/maintainai/MainActivity.kt
+          git commit -m "Fix APK compileSdk and Kotlin build errors" || exit 0
+          git push origin HEAD:main
