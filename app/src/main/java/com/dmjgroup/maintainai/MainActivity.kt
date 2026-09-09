@@ -67,7 +67,7 @@ class MainViewModel : ViewModel() {
     var error by mutableStateOf<String?>(null); private set
     var serverUrl by mutableStateOf(DEFAULT_SERVER_URL); private set
 
-    fun setServerUrl(url: String) { serverUrl = url.trim().ifEmpty { DEFAULT_SERVER_URL } }
+    fun updateServerUrl(url: String) { serverUrl = url.trim().ifEmpty { DEFAULT_SERVER_URL } }
 
     fun refresh() = viewModelScope.launch {
         loading = true
@@ -89,7 +89,7 @@ fun MaintainApp(vm: MainViewModel = viewModel()) {
                 composable("alerts") { AlertsScreen(vm.data.alerts) }
                 composable("analytics") { AnalyticsScreen(vm.data.machines) }
                 composable("reports") { ReportsScreen(vm.data) }
-                composable("settings") { SettingsScreen(vm.serverUrl) { vm.setServerUrl(it); vm.refresh() } }
+                composable("settings") { SettingsScreen(vm.serverUrl) { vm.updateServerUrl(it); vm.refresh() } }
             }
         }
     }
