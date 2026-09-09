@@ -27,7 +27,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: ""
+          packages: "platform-tools"
           accept-android-sdk-licenses: "yes"
           log-accepted-android-sdk-licenses: "false"
 
@@ -36,7 +36,6 @@ jobs:
         run: |
           set -euo pipefail
           sdkmanager --install \
-            "platform-tools" \
             "platforms;android-37" \
             "build-tools;35.0.0"
 
