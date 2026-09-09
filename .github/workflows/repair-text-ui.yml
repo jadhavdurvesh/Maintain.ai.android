@@ -1,0 +1,78 @@
+name: Repair Android Text UI
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: contains(github.event.head_commit.message, 'Android UI text repair') == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch Android UI
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          main = Path('app/src/main/java/com/dmjgroup/maintainai/MainActivity.kt')
+          text = main.read_text()
+
+          old = '''OutlinedTextField(text, { text = it }, label = { Text("Server URL") }, modifier = Modifier.fillMaxWidth(), singleLine = true)'''
+          new = '''OutlinedTextField(
+              value = text,
+              onValueChange = { text = it },
+              label = { Text("Server URL") },
+              modifier = Modifier.fillMaxWidth(),
+              singleLine = true,
+              colors = OutlinedTextFieldDefaults.colors(
+                  focusedTextColor = TextPrimary,
+                  unfocusedTextColor = TextPrimary,
+                  cursorColor = Cyan,
+                  focusedBorderColor = Cyan,
+                  unfocusedBorderColor = TextMuted,
+                  focusedLabelColor = Cyan,
+                  unfocusedLabelColor = TextMuted,
+                  focusedContainerColor = Surface2,
+                  unfocusedContainerColor = Surface2
+              )
+          )'''
+          if old not in text:
+              raise SystemExit('Settings TextField pattern not found')
+          text = text.replace(old, new, 1)
+
+          replacements = {
+              'Text(m.name, fontWeight = FontWeight.SemiBold);': 'Text(m.name, fontWeight = FontWeight.SemiBold, modifier = Modifier.fillMaxWidth(), softWrap = true);',
+              'Text(i.machineName ?: "Machine", fontWeight = FontWeight.Bold, Modifier.weight(1f));': 'Text(i.machineName ?: "Machine", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), softWrap = true);',
+              'Text("WO-${order.id} • ${machine?.name ?: "Machine #${order.machineId}"}", fontWeight = FontWeight.Bold);': 'Text("WO-${order.id} • ${machine?.name ?: "Machine #${order.machineId}"}", fontWeight = FontWeight.Bold, softWrap = true);'
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'MainActivity pattern not found: {old}')
+              text = text.replace(old, new, 1)
+
+          main.write_text(text)
+
+          work = Path('app/src/main/java/com/dmjgroup/maintainai/WorkOrdersScreen.kt')
+          text = work.read_text()
+          old = 'Text(machineName, fontWeight = FontWeight.Bold)'
+          new = 'Text(machineName, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), softWrap = true)'
+          if old not in text:
+              raise SystemExit('Work order machine-name pattern not found')
+          work.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Commit repaired UI
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/dmjgroup/maintainai/MainActivity.kt app/src/main/java/com/dmjgroup/maintainai/WorkOrdersScreen.kt
+          git diff --cached --quiet && exit 0
+          git commit -m "Android UI text repair [skip ci]"
+          git push
