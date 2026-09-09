@@ -1,0 +1,45 @@
+name: Repair Kotlin Source
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fix Kotlin source
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/dmjgroup/maintainai/MainActivity.kt")
+          text = p.read_text()
+          old_work = 'if (vm.data.workOrders.isEmpty()) item { EmptyState("No work orders", "New maintenance jobs will appear automatically.") } else vm.data.workOrders.take(3).forEach { WorkOrderPreview(it, machines) }'
+          new_work = 'if (vm.data.workOrders.isEmpty()) item { EmptyState("No work orders", "New maintenance jobs will appear automatically.") } else items(vm.data.workOrders.take(3), key = { it.id }) { WorkOrderPreview(it, machines) }'
+          if old_work not in text:
+              raise SystemExit("Expected work-order expression not found")
+          text = text.replace(old_work, new_work, 1)
+          old_alert = 'Text(a.alertType ?: "Maintenance alert", fontWeight = FontWeight.Bold, Modifier.weight(1f));'
+          new_alert = 'Text(a.alertType ?: "Maintenance alert", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold);'
+          if old_alert not in text:
+              raise SystemExit("Expected AlertCard Text call not found")
+          text = text.replace(old_alert, new_alert, 1)
+          p.write_text(text)
+          PY
+
+      - name: Commit Kotlin repair
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/dmjgroup/maintainai/MainActivity.kt
+          git commit -m "Fix Compose Kotlin source errors" || exit 0
+          git push origin HEAD:main
