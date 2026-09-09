@@ -26,5 +26,6 @@ For a physical phone connected to the same Wi-Fi as the computer running MAINTAI
 
 GitHub Actions workflow: `.github/workflows/build-apk.yml`
 
-Run it manually from **Actions → Build MAINTAIN AI Android APK → Run workflow**, or push a `v*` tag. The release APK is uploaded as a workflow artifact.
+The project compiles against Android API 37 to match the current Jetpack Compose dependencies while retaining target SDK 36.
 
+Run it manually from **Actions → Build MAINTAIN AI Android APK → Run workflow**, or push a `v*` tag. The release APK is uploaded as a workflow artifact.
