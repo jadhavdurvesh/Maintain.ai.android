@@ -8,4 +8,6 @@ interface MaintainApi {
     @GET("api/alerts") suspend fun getAlerts(): List<Alert>
     @GET("api/work-orders") suspend fun getWorkOrders(): List<WorkOrder>
     @GET("api/machines/{id}/readings") suspend fun getReadings(@Path("id") id: Int): List<SensorReading>
+    // Reserved for the local predictive-maintenance model service.
+    @GET("api/ai/insights") suspend fun getAiInsights(): List<AiModelInsight>
 }
