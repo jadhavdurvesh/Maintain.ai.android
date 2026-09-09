@@ -1,0 +1,123 @@
+name: One-time Android UI patch
+
+on: push
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Android app
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/dmjgroup/maintainai/MainActivity.kt')
+          s = p.read_text()
+          s = s.replace('import kotlinx.coroutines.launch\n', 'import kotlinx.coroutines.delay\nimport kotlinx.coroutines.isActive\nimport kotlinx.coroutines.launch\n')
+
+          old = '''class MainViewModel : ViewModel() {
+    var data by mutableStateOf(DashboardData()); private set
+    var loading by mutableStateOf(false); private set
+    var error by mutableStateOf<String?>(null); private set
+    var serverUrl by mutableStateOf(DEFAULT_SERVER_URL); private set
+    var lastUpdated by mutableStateOf(""); private set
+
+    fun updateServerUrl(url: String) { serverUrl = url.trim().ifEmpty { DEFAULT_SERVER_URL } }
+
+    fun refresh() = viewModelScope.launch {
+        loading = true
+        error = null
+        runCatching { MaintainRepository().load(serverUrl) }
+            .onSuccess { data = it; lastUpdated = "Just now" }
+            .onFailure { error = it.message ?: "Unable to connect" }
+        loading = false
+    }
+}'''
+          new = '''class MainViewModel : ViewModel() {
+    var data by mutableStateOf(DashboardData()); private set
+    var loading by mutableStateOf(false); private set
+    var error by mutableStateOf<String?>(null); private set
+    var serverUrl by mutableStateOf(DEFAULT_SERVER_URL); private set
+    var lastUpdated by mutableStateOf(""); private set
+
+    init {
+        viewModelScope.launch {
+            refresh(silent = true)
+            while (isActive) {
+                delay(30_000)
+                refresh(silent = true)
+            }
+        }
+    }
+
+    fun updateServerUrl(url: String) { serverUrl = url.trim().ifEmpty { DEFAULT_SERVER_URL } }
+
+    fun refresh(silent: Boolean = false) = viewModelScope.launch {
+        if (!silent) {
+            loading = true
+            error = null
+        }
+        runCatching { MaintainRepository().load(serverUrl) }
+            .onSuccess { data = it; lastUpdated = "Live" }
+            .onFailure { if (!silent) error = it.message ?: "Unable to connect" }
+        if (!silent) loading = false
+    }
+}'''
+          assert old in s, 'MainViewModel block not found'
+          s = s.replace(old, new, 1)
+
+          s = s.replace('IconButton(onClick = vm::refresh) { Icon(Icons.Default.Refresh, "Refresh", tint = Cyan) }', 'Box(Modifier.size(9.dp).clip(CircleShape).background(Green))')
+          s = s.replace('composable("reports") { ReportsScreen(vm.data) }\n                composable("settings")', 'composable("reports") { ReportsScreen(vm.data) }\n                composable("workorders") { WorkOrdersScreen(vm.data.workOrders, vm.data.machines) }\n                composable("settings")')
+          s = s.replace('"reports" to Icons.Default.Assessment,\n        "settings" to Icons.Default.Settings', '"reports" to Icons.Default.Assessment,\n        "workorders" to Icons.Default.Build,\n        "settings" to Icons.Default.Settings')
+
+          old_alert = '''                Row(verticalAlignment = Alignment.CenterVertically) { Text(a.title ?: "Maintenance alert", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)); MiniChip(severity, accent) }
+                Spacer(Modifier.height(6.dp)); Text(a.message ?: "No additional information.", color = TextMuted)
+                Spacer(Modifier.height(7.dp)); Text(a.status?.uppercase() ?: "OPEN", color = accent, style = MaterialTheme.typography.labelSmall)'''
+          new_alert = '''                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(a.alertType ?: "Maintenance alert", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    MiniChip(severity, accent)
+                }
+                Spacer(Modifier.height(6.dp)); Text(a.message ?: "No additional information.", color = TextMuted)
+                Spacer(Modifier.height(7.dp)); Text(if (a.resolved) "RESOLVED" else if (a.acknowledged) "ACKNOWLEDGED" else "OPEN", color = accent, style = MaterialTheme.typography.labelSmall)'''
+          assert old_alert in s, 'AlertCard block not found'
+          s = s.replace(old_alert, new_alert, 1)
+
+          old_report = '        item { ReportRow("Work orders", data.workOrders.size.toString(), Icons.Default.Build) }'
+          new_report = '''        item { SectionTitle("Active work orders", "Maintenance jobs currently tracked") }
+        if (data.workOrders.isEmpty()) {
+            item { EmptyState("No work orders", "New maintenance jobs will appear automatically.") }
+        } else {
+            items(data.workOrders.take(5), key = { it.id }) { order ->
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(16.dp)) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("WO-${order.id}", color = TextMuted, style = MaterialTheme.typography.labelSmall)
+                                Text(order.problem ?: "Maintenance work order", fontWeight = FontWeight.Bold)
+                            }
+                            MiniChip(order.priority?.uppercase() ?: "MEDIUM", if (order.priority?.lowercase() in setOf("critical", "high")) Red else Amber)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text("Machine #${order.machineId}", color = TextMuted, style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.height(5.dp))
+                        Text(order.status?.replace('_', ' ')?.uppercase() ?: "UNKNOWN", color = Cyan, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        }'''
+          assert old_report in s, 'Reports work order row not found'
+          s = s.replace(old_report, new_report, 1)
+          p.write_text(s)
+          PY
+
+      - name: Commit patch and remove one-time workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/one-time-android-patch.yml
+          git add app/src/main/java/com/dmjgroup/maintainai/MainActivity.kt .github/workflows/one-time-android-patch.yml
+          git commit -m "Apply Android work orders and silent refresh"
+          git push
