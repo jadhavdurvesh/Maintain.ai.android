@@ -46,8 +46,25 @@ data class WorkOrder(
     @SerializedName("due_date") val dueDate: String? = null
 )
 
+data class AiModelInsight(
+    val id: String? = null,
+    @SerializedName("machine_id") val machineId: Int? = null,
+    @SerializedName("machine_name") val machineName: String? = null,
+    @SerializedName("model_name") val modelName: String? = null,
+    @SerializedName("model_version") val modelVersion: String? = null,
+    val status: String? = null,
+    @SerializedName("risk_score") val riskScore: Double? = null,
+    @SerializedName("anomaly_score") val anomalyScore: Double? = null,
+    val confidence: Double? = null,
+    @SerializedName("predicted_failure_window") val predictedFailureWindow: String? = null,
+    val diagnosis: String? = null,
+    @SerializedName("recommended_action") val recommendedAction: String? = null,
+    @SerializedName("generated_at") val generatedAt: String? = null
+)
+
 data class DashboardData(
     val machines: List<Machine> = emptyList(),
     val alerts: List<Alert> = emptyList(),
-    val workOrders: List<WorkOrder> = emptyList()
+    val workOrders: List<WorkOrder> = emptyList(),
+    val aiInsights: List<AiModelInsight> = emptyList()
 )
