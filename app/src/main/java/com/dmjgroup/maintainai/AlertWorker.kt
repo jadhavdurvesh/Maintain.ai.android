@@ -17,12 +17,12 @@ class AlertWorker(appContext: Context, workerParams: WorkerParameters) : Corouti
             val prefs = applicationContext.getSharedPreferences("alert_notifications", Context.MODE_PRIVATE)
             val lastId = prefs.getInt("last_alert_id", 0)
 
-            alerts.filter { it.id > lastId && it.severity?.lowercase() in setOf("critical", "high") }
+            alerts.filter { it.id > lastId && it.severity?.lowercase() in setOf("urgent", "critical", "high") }
                 .sortedBy { it.id }
                 .forEach { alert ->
                     val notification = NotificationCompat.Builder(applicationContext, "alerts")
                         .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                        .setContentTitle(alert.title ?: "MAINTAIN AI Alert")
+                        .setContentTitle(alert.alertType ?: "MAINTAIN AI Alert")
                         .setContentText(alert.message ?: "A maintenance alert requires attention.")
                         .setPriority(NotificationCompat.PRIORITY_HIGH)
                         .setAutoCancel(true)
