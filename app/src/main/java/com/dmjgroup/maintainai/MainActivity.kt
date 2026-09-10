@@ -56,11 +56,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         createNotificationChannel()
-        scheduleAlertWorker()
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            registerForActivityResult(ActivityResultContracts.RequestPermission()) {}.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
         setContent { MaintainApp() }
+
+        // Background alert checks must never block or crash the main UI.
+        runCatching { scheduleAlertWorker() }
+
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            runCatching {
+                registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
+                    .launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
     }
 
     private fun createNotificationChannel() {
@@ -112,15 +118,62 @@ fun MaintainApp(vm: MainViewModel = viewModel()) {
 @Composable
 private fun BottomNav(nav: NavHostController) {
     val current = nav.currentBackStackEntryAsState().value?.destination?.route
-    val items = listOf("dashboard" to ("Overview" to Icons.Default.Dashboard), "alerts" to ("Alerts" to Icons.Default.Notifications), "analytics" to ("Analytics" to Icons.Default.Insights), "workorders" to ("Work Orders" to Icons.Default.Build), "more" to ("More" to Icons.Default.MoreHoriz))
-    NavigationBar(containerColor = Color(0xFF0C1727), tonalElevation = 0.dp) {
-        items.forEach { (route, item) -> NavigationBarItem(
-            selected = current == route,
-            onClick = { nav.navigate(route) { launchSingleTop = true; popUpTo("dashboard") { saveState = true } } },
-            icon = { Icon(item.second, contentDescription = item.first) },
-            label = { Text(item.first, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
-            colors = NavigationBarItemDefaults.colors(selectedIconColor = Cyan, selectedTextColor = Cyan, indicatorColor = Cyan.copy(alpha = .12f))
-        ) }
+    val items = listOf(
+        "dashboard" to ("Overview" to Icons.Default.Dashboard),
+        "alerts" to ("Alerts" to Icons.Default.Notifications),
+        "analytics" to ("Analytics" to Icons.Default.Insights),
+        "workorders" to ("Work Orders" to Icons.Default.Build),
+        "more" to ("More" to Icons.Default.MoreHoriz)
+    )
+
+    Surface(color = Color(0xFF0C1727), shadowElevation = 8.dp) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(74.dp).padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            items.forEach { (route, item) ->
+                val selected = current == route
+                val iconSize = if (selected) 30.dp else 22.dp
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable {
+                            nav.navigate(route) {
+                                launchSingleTop = true
+                                popUpTo("dashboard") { saveState = true }
+                            }
+                        },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (selected) Cyan.copy(alpha = .12f) else Color.Transparent)
+                            .padding(horizontal = 11.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            item.second,
+                            contentDescription = item.first,
+                            tint = if (selected) Cyan else TextMuted,
+                            modifier = Modifier.size(iconSize)
+                        )
+                    }
+                    if (selected) {
+                        Text(
+                            item.first,
+                            color = Cyan,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            modifier = Modifier.padding(top = 1.dp)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
