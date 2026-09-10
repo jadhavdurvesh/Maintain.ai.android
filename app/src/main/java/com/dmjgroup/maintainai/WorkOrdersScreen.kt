@@ -29,10 +29,7 @@ private val WorkMuted = Color(0xFF8FA1B8)
 @Composable
 fun WorkOrdersScreen(workOrders: List<WorkOrder>, machines: List<Machine>) {
     val machineNames = machines.associateBy { it.id }
-    LazyColumn(
-        Modifier.fillMaxSize().padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    LazyColumn(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Column {
                 Text("Work Orders", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -51,7 +48,8 @@ fun WorkOrdersScreen(workOrders: List<WorkOrder>, machines: List<Machine>) {
                 }
             }
         }
-        items(workOrders, key = { it.id }) { order ->
+        // Do not trust backend IDs as unique Compose keys; malformed legacy data must not crash the screen.
+        items(workOrders) { order ->
             val machine = machineNames[order.machineId]
             WorkOrderCard(order, machine?.name ?: "Machine #${order.machineId}")
         }
@@ -67,11 +65,7 @@ private fun WorkOrderCard(order: WorkOrder, machineName: String) {
         "MEDIUM" -> WorkAmber
         else -> WorkGreen
     }
-    Card(
-        Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = WorkSurface),
-        shape = RoundedCornerShape(18.dp)
-    ) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = WorkSurface), shape = RoundedCornerShape(18.dp)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Build, null, tint = WorkCyan)
