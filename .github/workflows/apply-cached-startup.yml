@@ -1,0 +1,149 @@
+name: Apply cached startup UI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add cache and skeleton loading
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/dmjgroup/maintainai/MainActivity.kt')
+          s = p.read_text()
+
+          s = s.replace('import androidx.compose.ui.text.font.FontWeight\n', 'import androidx.compose.ui.text.font.FontWeight\n')
+          s = s.replace('import com.dmjgroup.maintainai.data.*\n', 'import com.dmjgroup.maintainai.data.*\nimport com.google.gson.Gson\n')
+          s = s.replace('private val TextMuted = Color(0xFF8FA1B8)\n', 'private val TextMuted = Color(0xFF8FA1B8)\nprivate val Skeleton = Color(0xFF1A2940)\nprivate const val CACHE_PREFS = "maintain_ai_cache"\nprivate const val CACHE_DATA = "dashboard_data"\nprivate val gson = Gson()\n')
+
+          old_init = '''    init { viewModelScope.launch { sync(true); while (isActive) { delay(10_000); sync(true) } } }'''
+          new_init = '''    private var appContext: Context? = null
+
+    fun initialize(context: Context) {
+        if (appContext != null) return
+        appContext = context.applicationContext
+        data = loadCachedData(appContext!!)
+        lastUpdated = if (data.machines.isEmpty() && data.alerts.isEmpty() && data.workOrders.isEmpty()) "" else "Cached"
+        loading = data.machines.isEmpty() && data.alerts.isEmpty() && data.workOrders.isEmpty()
+        viewModelScope.launch {
+            sync(silent = true)
+            while (isActive) {
+                delay(10_000)
+                sync(silent = true)
+            }
+        }
+    }'''
+          if old_init not in s: raise SystemExit('MainViewModel init not found')
+          s = s.replace(old_init, new_init, 1)
+
+          old_success = '''            .onSuccess { data = it; lastUpdated = "Live" }.onFailure { if (!silent) error = it.message ?: "Unable to connect" }
+        if (!silent) loading = false'''
+          new_success = '''            .onSuccess {
+                data = it
+                lastUpdated = "Live"
+                loading = false
+                appContext?.let { context -> saveCachedData(context, it) }
+            }
+            .onFailure {
+                loading = false
+                if (!silent || (data.machines.isEmpty() && data.alerts.isEmpty() && data.workOrders.isEmpty())) {
+                    error = it.message ?: "Unable to connect"
+                }
+            }
+        if (!silent) loading = false'''
+          if old_success not in s: raise SystemExit('sync block not found')
+          s = s.replace(old_success, new_success, 1)
+
+          anchor = 'class MainViewModel : ViewModel() {'
+          insert_after = '''
+private fun loadCachedData(context: Context): DashboardData {
+    val json = context.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE).getString(CACHE_DATA, null) ?: return DashboardData()
+    return runCatching { gson.fromJson(json, DashboardData::class.java) }.getOrDefault(DashboardData())
+}
+
+private fun saveCachedData(context: Context, data: DashboardData) {
+    runCatching {
+        context.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(CACHE_DATA, gson.toJson(data))
+            .apply()
+    }
+}
+
+'''
+          if 'private fun loadCachedData(context: Context)' not in s:
+              s = s.replace(anchor, insert_after + anchor, 1)
+
+          old_app_start = '''fun MaintainApp(vm: MainViewModel = viewModel()) {
+    val nav = rememberNavController()'''
+          new_app_start = '''fun MaintainApp(vm: MainViewModel = viewModel()) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) { vm.initialize(context) }
+    val nav = rememberNavController()'''
+          if old_app_start in s and 'vm.initialize(context)' not in s:
+              s = s.replace(old_app_start, new_app_start, 1)
+
+          marker = '@Composable\nprivate fun DashboardScreen(vm: MainViewModel) {'
+          skeleton = '''@Composable
+private fun SkeletonBar(modifier: Modifier) {
+    Box(modifier.clip(RoundedCornerShape(10.dp)).background(Skeleton))
+}
+
+@Composable
+private fun DashboardSkeleton() {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SkeletonBar(Modifier.width(150.dp).height(24.dp))
+                    SkeletonBar(Modifier.width(125.dp).height(14.dp))
+                }
+                SkeletonBar(Modifier.width(58.dp).height(28.dp))
+            }
+        }
+        item { SkeletonBar(Modifier.fillMaxWidth().height(116.dp).clip(RoundedCornerShape(20.dp))) }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { repeat(3) { SkeletonBar(Modifier.weight(1f).height(86.dp).clip(RoundedCornerShape(16.dp))) } } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) { repeat(2) { SkeletonBar(Modifier.weight(1f).height(78.dp).clip(RoundedCornerShape(16.dp))) } } }
+        item { SkeletonBar(Modifier.fillMaxWidth().height(126.dp).clip(RoundedCornerShape(18.dp))) }
+        item { SkeletonBar(Modifier.fillMaxWidth().height(112.dp).clip(RoundedCornerShape(18.dp))) }
+        item { SkeletonBar(Modifier.fillMaxWidth().height(88.dp).clip(RoundedCornerShape(16.dp))) }
+        item { SkeletonBar(Modifier.fillMaxWidth().height(88.dp).clip(RoundedCornerShape(16.dp))) }
+    }
+}
+
+'''
+          if marker not in s: raise SystemExit('Dashboard marker not found')
+          if 'private fun DashboardSkeleton()' not in s:
+              s = s.replace(marker, skeleton + marker, 1)
+
+          old_dash = '''private fun DashboardScreen(vm: MainViewModel) {
+    val machines = vm.data.machines'''
+          new_dash = '''private fun DashboardScreen(vm: MainViewModel) {
+    if (vm.loading && vm.data.machines.isEmpty() && vm.data.alerts.isEmpty() && vm.data.workOrders.isEmpty()) {
+        DashboardSkeleton()
+        return
+    }
+    val machines = vm.data.machines'''
+          if old_dash not in s: raise SystemExit('Dashboard start not found')
+          s = s.replace(old_dash, new_dash, 1)
+
+          p.write_text(s)
+          PY
+
+      - name: Remove temporary workflow and commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-cached-startup.yml
+          git add app/src/main/java/com/dmjgroup/maintainai/MainActivity.kt
+          git commit -m "Cache dashboard data and add startup skeleton"
+          git push origin HEAD:main
