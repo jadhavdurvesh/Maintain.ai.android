@@ -11,6 +11,7 @@ This is a separate mobile client for monitoring the MAINTAIN AI maintenance syst
 - Dashboard and machine health
 - Alerts
 - Analytics
+- Work Orders
 - Reports
 - Backend connection settings
 
@@ -29,3 +30,5 @@ GitHub Actions workflow: `.github/workflows/build-apk.yml`
 The project compiles against Android API 37 to match the current Jetpack Compose dependencies while retaining target SDK 36.
 
 Run it manually from **Actions → Build MAINTAIN AI Android APK → Run workflow**, or push a `v*` tag. The release APK is uploaded as a workflow artifact.
+
+The bottom navigation uses icon-only inactive items and enlarges the selected icon with its label. Startup background scheduling is isolated so it cannot prevent the main UI from opening.
