@@ -1,14 +1,23 @@
+<div align="center">
+
 # MAINTAIN AI Android
 
-[![Ask DeepWiki](https://devin.ai/assets/askdeepwiki.png)](https://deepwiki.com/jadhavdurvesh/Maintain.ai.android)
-[![Android](https://img.shields.io/badge/Android-API%2026%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.x-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
-[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-UI-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![Material 3](https://img.shields.io/badge/Material%203-Design-757575?logo=materialdesign&logoColor=white)](https://m3.material.io/)
-[![Gradle](https://img.shields.io/badge/Gradle-Build-02303A?logo=gradle&logoColor=white)](https://gradle.org/)
-[![JDK 17](https://img.shields.io/badge/JDK-17-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org/)
+<p>
+  <a href="https://deepwiki.com/jadhavdurvesh/Maintain.ai.android"><img src="https://devin.ai/assets/askdeepwiki.png" alt="Ask DeepWiki" height="34"></a>
+</p>
 
-**Native Android operations client for the MAINTAIN AI predictive maintenance platform.**
+<p>
+  <img src="https://img.shields.io/badge/Android-API%2026%2B-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android API 26+">
+  <img src="https://img.shields.io/badge/Kotlin-2.3.21-7F52FF?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin 2.3.21">
+  <img src="https://img.shields.io/badge/Jetpack%20Compose-2.3.21-4285F4?style=flat-square&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose">
+  <img src="https://img.shields.io/badge/Material%203-UI-757575?style=flat-square&logo=materialdesign&logoColor=white" alt="Material 3">
+  <img src="https://img.shields.io/badge/Gradle-9.6-02303A?style=flat-square&logo=gradle&logoColor=white" alt="Gradle 9.6">
+  <img src="https://img.shields.io/badge/JDK-17-437291?style=flat-square&logo=openjdk&logoColor=white" alt="JDK 17">
+</p>
+
+<p><strong>Native Android operations client for the MAINTAIN AI predictive maintenance platform.</strong></p>
+
+</div>
 
 MAINTAIN AI Android brings fleet monitoring, maintenance intelligence, alerts, analytics, work orders, and reporting to Android devices. The application connects to the MAINTAIN AI FastAPI backend through a REST API and is designed as a mobile operations interface rather than a direct database client.
 
