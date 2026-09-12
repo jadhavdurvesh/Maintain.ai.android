@@ -1,6 +1,12 @@
 # MAINTAIN AI Android
 
 [![Ask DeepWiki](https://devin.ai/assets/askdeepwiki.png)](https://deepwiki.com/jadhavdurvesh/Maintain.ai.android)
+[![Android](https://img.shields.io/badge/Android-API%2026%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.x-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
+[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-UI-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
+[![Material 3](https://img.shields.io/badge/Material%203-Design-757575?logo=materialdesign&logoColor=white)](https://m3.material.io/)
+[![Gradle](https://img.shields.io/badge/Gradle-Build-02303A?logo=gradle&logoColor=white)](https://gradle.org/)
+[![JDK 17](https://img.shields.io/badge/JDK-17-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org/)
 
 **Native Android operations client for the MAINTAIN AI predictive maintenance platform.**
 
@@ -292,12 +298,6 @@ The application declares the permissions required for its core functionality:
 |---|---|
 | `INTERNET` | Communication with the MAINTAIN AI backend |
 | `POST_NOTIFICATIONS` | Display maintenance notifications on supported Android versions |
-
-## Maintained By
-
-**DMJ Group**
-
-MAINTAIN AI is part of the DMJ Group software ecosystem, with this repository providing the native Android client for the MAINTAIN AI maintenance platform.
 
 ---
 
