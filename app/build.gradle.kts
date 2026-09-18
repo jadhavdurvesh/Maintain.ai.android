@@ -7,12 +7,16 @@ android {
     namespace = "com.dmjgroup.maintainai"
     compileSdk = 37
 
+    buildFeatures { buildConfig = true }
+
     defaultConfig {
         applicationId = "com.dmjgroup.maintainai"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("String", "SUPABASE_URL", "\"${System.getenv("SUPABASE_URL") ?: ""}\"")
+        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${System.getenv("SUPABASE_PUBLISHABLE_KEY") ?: ""}\"")
     }
 
     buildTypes {
