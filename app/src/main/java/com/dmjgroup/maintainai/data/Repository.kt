@@ -35,6 +35,7 @@ class MaintainRepository(private val context: Context? = null) {
             .addInterceptor { chain ->
                 val request = chain.request().newBuilder().apply {
                     if (baseUrl.startsWith(BuildConfig.SUPABASE_URL) && BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()) header("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                    if (!chain.request().url.encodedPath.contains("/auth/v1/")) header("X-Maintain-Application", "android")
                     if (!chain.request().url.encodedPath.contains("/auth/v1/") && !token.isNullOrBlank()) {
                         header("Authorization", "Bearer $token")
                     }
