@@ -13,7 +13,7 @@ class AlertWorker(appContext: Context, workerParams: WorkerParameters) : Corouti
     override suspend fun doWork(): Result {
         return runCatching {
             val url = SettingsRepository(applicationContext).serverUrl.first()
-            val alerts = MaintainRepository().alerts(url)
+            val alerts = MaintainRepository(applicationContext).alerts(url)
             val prefs = applicationContext.getSharedPreferences("alert_notifications", Context.MODE_PRIVATE)
             val lastId = prefs.getInt("last_alert_id", 0)
 
