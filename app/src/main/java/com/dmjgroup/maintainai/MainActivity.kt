@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -91,7 +92,16 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-class MainViewModel : ViewModel() {
+class MainViewModel(application: android.app.Application) : AndroidViewModel(application) {
+    private val auth = AuthRepository(application)
+    var authenticated by mutableStateOf(auth.token() != null); private set
+    fun login(email: String, password: String) = viewModelScope.launch {
+        error = null
+        val ok = runCatching { auth.login(email, password) }.getOrDefault(false)
+        if (ok) { authenticated = true; refresh() } else error = "Sign in failed. Check your work email and password."
+    }
+    fun logout() { auth.clear(); authenticated = false; data = DashboardData() }
+
     var data by mutableStateOf(DashboardData()); private set
     var loading by mutableStateOf(false); private set
     var error by mutableStateOf<String?>(null); private set
@@ -116,14 +126,14 @@ class MainViewModel : ViewModel() {
     fun refresh() = viewModelScope.launch { refreshSafely(silent = false) }
 
     private suspend fun refreshSafely(silent: Boolean) {
-        if (syncing) return
+        if (!authenticated || syncing) return
         syncing = true
         try {
             if (!silent) {
                 loading = true
                 error = null
             }
-            val result = runCatching { MaintainRepository().load(serverUrl) }
+            val result = runCatching { MaintainRepository(getApplication()).load(serverUrl) }
             result.onSuccess {
                 data = it
                 lastUpdated = "Live"
@@ -144,7 +154,9 @@ class MainViewModel : ViewModel() {
 }
 
 @Composable
+@Composable
 fun MaintainApp(vm: MainViewModel = viewModel()) {
+    if (!vm.authenticated) { LoginScreen(vm); return }
     val nav = rememberNavController()
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -169,6 +181,32 @@ fun MaintainApp(vm: MainViewModel = viewModel()) {
                 composable("settings") { SettingsScreen(vm.serverUrl) { vm.updateServerUrl(it); vm.refresh() } }
             }
         }
+    }
+}
+
+
+
+@Composable
+private fun LoginScreen(vm: MainViewModel) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    Column(
+        Modifier.fillMaxSize().background(AppBackground).padding(28.dp),
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("MAINTAIN AI", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Text("Operations control center", color = TextMuted)
+        Spacer(Modifier.height(28.dp))
+        OutlinedTextField(email, { email = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Work email") }, singleLine = true)
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(password, { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Password") }, singleLine = true)
+        Spacer(Modifier.height(18.dp))
+        Button(
+            onClick = { if (email.isNotBlank() && password.isNotBlank()) vm.login(email.trim(), password) },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Sign in") }
+        vm.error?.let { Text(it, color = Red, modifier = Modifier.padding(top = 12.dp)) }
+        Text("Use the account invited by your company administrator.", color = TextMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 18.dp))
     }
 }
 
