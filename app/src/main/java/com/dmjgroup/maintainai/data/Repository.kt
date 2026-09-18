@@ -27,10 +27,21 @@ class SettingsRepository(private val context: Context) {
     }
 }
 
-class MaintainRepository {
+class MaintainRepository(private val context: Context? = null) {
     private fun api(baseUrl: String): MaintainApi {
         val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
-        val client = OkHttpClient.Builder().addInterceptor(logging).build()
+        val token = context?.getSharedPreferences("maintain_auth", Context.MODE_PRIVATE)?.getString("token", null)
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder().apply {
+                    if (!chain.request().url.encodedPath.contains("/auth/v1/") && !token.isNullOrBlank()) {
+                        header("Authorization", "Bearer $token")
+                    }
+                }.build()
+                chain.proceed(request)
+            }
+            .addInterceptor(logging)
+            .build()
         return Retrofit.Builder()
             .baseUrl(if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/")
             .client(client)
@@ -38,6 +49,8 @@ class MaintainRepository {
             .build()
             .create(MaintainApi::class.java)
     }
+
+    fun authApi(baseUrl: String): MaintainApi = api(baseUrl)
 
     suspend fun load(baseUrl: String): DashboardData {
         val api = api(baseUrl)
@@ -68,4 +81,19 @@ class MaintainRepository {
     suspend fun modelStatus(baseUrl: String): ModelStatus = api(baseUrl).getModelStatus()
     suspend fun riskPredictions(baseUrl: String): RiskPredictionsResponse = api(baseUrl).getRiskPredictions()
     suspend fun trainModel(baseUrl: String): TrainModelResponse = api(baseUrl).trainModel()
+}
+
+
+class AuthRepository(private val context: Context) {
+    private val prefs = context.getSharedPreferences("maintain_auth", Context.MODE_PRIVATE)
+    fun token(): String? = prefs.getString("token", null)
+    fun save(token: String) { prefs.edit().putString("token", token).apply() }
+    fun clear() { prefs.edit().remove("token").apply() }
+    suspend fun login(email: String, password: String): Boolean {
+        val response = MaintainRepository().authApi(BuildConfig.SUPABASE_URL)
+            .supabaseLogin(SupabaseLoginRequest(email, password))
+        val token = response.access_token ?: return false
+        save(token)
+        return true
+    }
 }
