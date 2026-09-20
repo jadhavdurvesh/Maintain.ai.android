@@ -7,8 +7,11 @@ import retrofit2.http.Path
 
 data class SupabaseLoginRequest(val email: String, val password: String)
 data class SupabaseLoginResponse(val access_token: String?, val refresh_token: String?, val user: Map<String, Any>?)
+data class AuthMeResponse(val user_id: Int?, val username: String?, val role: String?, val organization_id: Int?, val organization_name: String?)
 
 interface MaintainApi {
+    @retrofit2.http.POST("api/auth/supabase/sync") suspend fun syncSupabase(): Map<String, Any?>
+    @GET("api/auth/me") suspend fun me(): AuthMeResponse
     @retrofit2.http.POST("auth/v1/token?grant_type=password")
     suspend fun supabaseLogin(@Body request: SupabaseLoginRequest): SupabaseLoginResponse
 
