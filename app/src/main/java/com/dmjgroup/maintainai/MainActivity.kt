@@ -113,7 +113,13 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
 
     init {
         viewModelScope.launch {
-            refreshSafely(silent = true)
+            if (authenticated) {
+                auth.session().onFailure {
+                    auth.clear()
+                    authenticated = false
+                }
+            }
+            if (authenticated) refreshSafely(silent = true)
             while (isActive) {
                 delay(10_000)
                 refreshSafely(silent = true)
