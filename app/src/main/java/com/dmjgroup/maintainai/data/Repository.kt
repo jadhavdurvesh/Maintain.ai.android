@@ -91,11 +91,14 @@ class AuthRepository(private val context: Context) {
     fun token(): String? = prefs.getString("token", null)
     fun save(token: String) { prefs.edit().putString("token", token).apply() }
     fun clear() { prefs.edit().remove("token").apply() }
-    suspend fun login(email: String, password: String): Boolean {
-        val response = MaintainRepository().authApi(BuildConfig.SUPABASE_URL)
-            .supabaseLogin(SupabaseLoginRequest(email, password))
-        val token = response.access_token ?: return false
+    suspend fun login(email: String, password: String): Result<AuthMeResponse> {
+        val api = MaintainRepository(context).authApi(BuildConfig.SUPABASE_URL)
+        val response = api.supabaseLogin(SupabaseLoginRequest(email, password))
+        val token = response.access_token ?: return Result.failure(IllegalStateException("No access token returned"))
         save(token)
-        return true
+        return runCatching {
+            api.syncSupabase()
+            api.me().also { require(it.role != null && it.organization_id != null) { "Account is not authorized" } }
+        }
     }
 }
