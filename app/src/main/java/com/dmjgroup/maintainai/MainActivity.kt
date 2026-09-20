@@ -97,8 +97,10 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
     var authenticated by mutableStateOf(auth.token() != null); private set
     fun login(email: String, password: String) = viewModelScope.launch {
         error = null
-        val ok = runCatching { auth.login(email, password) }.getOrDefault(false)
-        if (ok) { authenticated = true; refresh() } else error = "Sign in failed. Check your work email and password."
+        auth.login(email, password).onSuccess { me ->
+            authenticated = true
+            refresh()
+        }.onFailure { auth.clear(); authenticated = false; error = it.message ?: "Sign in failed or Android access is not enabled." }
     }
     fun logout() { auth.clear(); authenticated = false; data = DashboardData() }
 
