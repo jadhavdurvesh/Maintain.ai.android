@@ -118,7 +118,7 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
         }, { status -> realtimeStatus = status })
     }
 
-    private fun startRealtime() { realtime.start() }
+    private fun startRealtime() { realtime.start(serverUrl) }
 
     init {
         viewModelScope.launch {
@@ -138,6 +138,10 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
 
     fun updateServerUrl(url: String) {
         serverUrl = url.trim().ifEmpty { DEFAULT_SERVER_URL }
+        if (authenticated) {
+            realtime.stop()
+            realtime.start(serverUrl)
+        }
     }
 
     fun refresh() = viewModelScope.launch { refreshSafely(silent = false) }
