@@ -323,7 +323,7 @@ private fun DashboardScreen(vm: MainViewModel) {
         else items(vm.data.workOrders.take(3)) { WorkOrderPreview(it, machines) }
         item { SectionTitle("Fleet", "Live machine health") }
         if (machines.isEmpty()) item { EmptyState("No machine data", "Connect to the MAINTAIN AI backend to see your fleet.") }
-        items(machines) { MachineCard(it) }
+        items(machines) { MachineCard(it, vm.liveTelemetry[it.id]) }
         item { Spacer(Modifier.height(8.dp)) }
     }
 }
@@ -464,7 +464,7 @@ private fun LegendRow(label: String, count: Int, color: Color, total: Int) {
 }
 
 @Composable
-private fun MachineCard(m: Machine) {
+private fun MachineCard(m: Machine, live: LiveTelemetry? = null) {
     val health = m.healthScore
     val status = when {
         health == null -> "NO DATA"
@@ -502,6 +502,14 @@ private fun MachineCard(m: Machine) {
                 )
                 Spacer(Modifier.width(9.dp))
                 Text(health?.let { "%.0f%%".format(it) } ?: "—", fontWeight = FontWeight.Bold)
+            }
+            live?.let {
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Sensors, null, tint = Cyan, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("LIVE  " + it.readingType.replaceFirstChar { c -> c.uppercase() } + ": " + it.value + (it.unit ?: ""), color = Cyan, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
     }
