@@ -39,8 +39,10 @@ class RealtimeTelemetry(
     private var reconnectJob: Job? = null
     private var stopped = false
     private var attempt = 0
+    private var apiBaseUrl: String = DEFAULT_SERVER_URL
 
-    fun start() {
+    fun start(baseUrl: String = DEFAULT_SERVER_URL) {
+        apiBaseUrl = baseUrl.trimEnd('/') + "/"
         stopped = false
         reconnectJob?.cancel()
         connect()
@@ -61,7 +63,7 @@ class RealtimeTelemetry(
             try {
                 onStatus("connecting")
                 val repo = MaintainRepository(context)
-                val base = repo.authApi(DEFAULT_SERVER_URL)
+                val base = repo.authApi(apiBaseUrl)
                 val token = base.realtimeToken().access_token
                 val machines = base.getMachines()
                 val machineIds = machines.map { it.id }.filter { it > 0 }.distinct()
