@@ -91,7 +91,7 @@ class AuthRepository(private val context: Context) {
     fun token(): String? = prefs.getString("token", null)
     fun save(token: String) { prefs.edit().putString("token", token).apply() }
     fun clear() { prefs.edit().remove("token").apply() }
-    suspend fun session(): Result<AuthMeResponse> = runCatching { MaintainRepository(context).authApi(BuildConfig.SUPABASE_URL).me() }
+    suspend fun session(): Result<AuthMeResponse> = runCatching { MaintainRepository(context).authApi(DEFAULT_SERVER_URL).me() }
     suspend fun login(email: String, password: String): Result<AuthMeResponse> {
         val supabaseApi = MaintainRepository(context).authApi(BuildConfig.SUPABASE_URL)
         val response = supabaseApi.supabaseLogin(SupabaseLoginRequest(email, password))
