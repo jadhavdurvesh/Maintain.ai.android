@@ -179,7 +179,7 @@ The Android data layer maps these responses into application models such as `Mac
 
 ## Backend Configuration
 
-The application currently uses the following default backend:
+The application uses a configurable Maintain.ai backend. Set `MAINTAIN_API_URL` for a build; the current development default is the deployed Maintain.ai API.
 
 ```text
 https://maintain-ai-3.vercel.app/
