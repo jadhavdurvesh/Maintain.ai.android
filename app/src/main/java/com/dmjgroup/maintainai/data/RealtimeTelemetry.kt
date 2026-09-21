@@ -62,9 +62,9 @@ class RealtimeTelemetry(
                 onStatus("connecting")
                 val repo = MaintainRepository(context)
                 val base = repo.authApi(DEFAULT_SERVER_URL)
-                val me = base.me()
                 val token = base.realtimeToken().access_token
-                val org = me.organization_id ?: throw IllegalStateException("No organization")
+                val machines = base.getMachines()
+                val machineIds = machines.map { it.id }.filter { it > 0 }.distinct()
                 val url = BuildConfig.SUPABASE_URL
                     .replaceFirst(Regex("^http"), "ws")
                     .trimEnd('/') + "/realtime/v1/websocket?apikey=" +
@@ -72,7 +72,7 @@ class RealtimeTelemetry(
                     "&vsn=1.0.0"
 
                 val request = Request.Builder().url(url).build()
-                socket = client.newWebSocket(request, listener(org, token))
+                socket = client.newWebSocket(request, listener(token, machineIds))
             } catch (t: Throwable) {
                 onStatus("reconnecting")
                 scheduleReconnect()
@@ -80,21 +80,24 @@ class RealtimeTelemetry(
         }
     }
 
-    private fun listener(org: Int, token: String) = object : WebSocketListener() {
+    private fun listener(token: String, machineIds: List<Int>) = object : WebSocketListener() {
         override fun onOpen(ws: WebSocket, response: Response) {
             attempt = 0
             onStatus("connected")
-            val topic = "realtime:org:$org:telemetry"
-            ws.send(JSONObject().apply {
-                put("ref", "1")
-                put("join_ref", "1")
-                put("topic", topic)
-                put("event", "phx_join")
-                put("payload", JSONObject().apply {
-                    put("config", JSONObject().apply { put("broadcast", JSONObject().put("self", false)); put("private", true) })
-                    put("access_token", token)
-                })
-            }.toString())
+            machineIds.forEachIndexed { index, machineId ->
+                val topic = "realtime:machine:$machineId:telemetry"
+                val ref = (index + 1).toString()
+                ws.send(JSONObject().apply {
+                    put("ref", ref)
+                    put("join_ref", ref)
+                    put("topic", topic)
+                    put("event", "phx_join")
+                    put("payload", JSONObject().apply {
+                        put("config", JSONObject().apply { put("broadcast", JSONObject().put("self", false)); put("private", true) })
+                        put("access_token", token)
+                    })
+                }.toString())
+            }
         }
 
         override fun onMessage(ws: WebSocket, text: String) {
