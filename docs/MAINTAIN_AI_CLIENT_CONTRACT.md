@@ -50,7 +50,7 @@ Realtime authorization is obtained from:
 
 `POST /api/auth/realtime-token`
 
-The client then joins the organization telemetry topic using the backend-issued token. Client-side filtering is not a security boundary.
+The client requests the machine list authorized by the backend and joins machine-scoped telemetry topics (`machine:<id>:telemetry`) using the backend-issued token. Client-side filtering is only a UI optimization.
 
 ## Machine scope
 
