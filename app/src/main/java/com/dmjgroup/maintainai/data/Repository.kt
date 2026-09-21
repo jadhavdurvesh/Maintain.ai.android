@@ -14,7 +14,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 private val Context.settingsDataStore by preferencesDataStore("settings")
 private val SERVER_URL = stringPreferencesKey("server_url")
 
-const val DEFAULT_SERVER_URL = "https://maintain-ai-3.vercel.app/"
+const val DEFAULT_SERVER_URL = BuildConfig.MAINTAIN_API_URL.let { if (it.endsWith("/")) it else "$it/" }
 
 class SettingsRepository(private val context: Context) {
     val serverUrl: Flow<String> = context.settingsDataStore.data.map { it[SERVER_URL] ?: DEFAULT_SERVER_URL }
