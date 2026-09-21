@@ -102,7 +102,7 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
             refresh()
         }.onFailure { auth.clear(); authenticated = false; error = it.message ?: "Sign in failed or Android access is not enabled." }
     }
-    fun logout() { auth.clear(); authenticated = false; data = DashboardData() }
+    fun logout() { realtime.stop(); auth.clear(); authenticated = false; data = DashboardData(); liveTelemetry = emptyMap() }
 
     var data by mutableStateOf(DashboardData()); private set
     var loading by mutableStateOf(false); private set
@@ -110,6 +110,15 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
     var serverUrl by mutableStateOf(DEFAULT_SERVER_URL); private set
     var lastUpdated by mutableStateOf(""); private set
     private var syncing = false
+    var realtimeStatus by mutableStateOf("offline"); private set
+    var liveTelemetry by mutableStateOf<Map<Int, LiveTelemetry>>(emptyMap()); private set
+    private val realtime by lazy {
+        RealtimeTelemetry(getApplication(), viewModelScope, { reading ->
+            liveTelemetry = liveTelemetry + (reading.machineId to reading)
+        }, { status -> realtimeStatus = status })
+    }
+
+    private fun startRealtime() { realtime.start() }
 
     init {
         viewModelScope.launch {
@@ -119,7 +128,7 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
                     authenticated = false
                 }
             }
-            if (authenticated) refreshSafely(silent = true)
+            if (authenticated) { refreshSafely(silent = true); startRealtime() }
             while (isActive) {
                 delay(10_000)
                 refreshSafely(silent = true)
