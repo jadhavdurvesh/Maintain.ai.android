@@ -89,18 +89,43 @@ class MaintainRepository(private val context: Context? = null) {
 class AuthRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("maintain_auth", Context.MODE_PRIVATE)
     fun token(): String? = prefs.getString("token", null)
-    fun save(token: String) { prefs.edit().putString("token", token).apply() }
-    fun clear() { prefs.edit().remove("token").apply() }
-    suspend fun session(): Result<AuthMeResponse> = runCatching { MaintainRepository(context).authApi(DEFAULT_SERVER_URL).me() }
+    fun refreshToken(): String? = prefs.getString("refresh_token", null)
+    fun save(token: String, refreshToken: String? = null) {
+        prefs.edit().putString("token", token).apply()
+        if (!refreshToken.isNullOrBlank()) prefs.edit().putString("refresh_token", refreshToken).apply()
+    }
+    fun clear() { prefs.edit().remove("token").remove("refresh_token").apply() }
+
+    private suspend fun refreshAccessToken(): Boolean {
+        val refresh = refreshToken() ?: return false
+        return runCatching {
+            val response = MaintainRepository(context).authApi(BuildConfig.SUPABASE_URL)
+                .supabaseRefresh(SupabaseRefreshRequest(refresh))
+            val token = response.access_token ?: return@runCatching false
+            save(token, response.refresh_token ?: refresh)
+            true
+        }.getOrDefault(false)
+    }
+
+    suspend fun session(): Result<AuthMeResponse> {
+        val backendApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
+        return runCatching { backendApi.me() }.recoverCatching { first ->
+            if (!refreshAccessToken()) throw first
+            MaintainRepository(context).authApi(DEFAULT_SERVER_URL).me()
+        }
+    }
+
     suspend fun login(email: String, password: String): Result<AuthMeResponse> {
         val supabaseApi = MaintainRepository(context).authApi(BuildConfig.SUPABASE_URL)
         val response = supabaseApi.supabaseLogin(SupabaseLoginRequest(email, password))
         val token = response.access_token ?: return Result.failure(IllegalStateException("No access token returned"))
-        save(token)
+        save(token, response.refresh_token)
         val backendApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
         return runCatching {
             backendApi.syncSupabase()
-            backendApi.me().also { require(it.role != null && it.organization_id != null) { "Account is not authorized" } }
+            backendApi.me().also { me ->
+                require(me.role != null && me.organization_id != null) { "Account is not authorized for the Android application" }
+            }
         }
     }
 }
