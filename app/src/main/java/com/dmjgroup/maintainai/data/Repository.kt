@@ -15,6 +15,7 @@ private val Context.settingsDataStore by preferencesDataStore("settings")
 private val SERVER_URL = stringPreferencesKey("server_url")
 
 const val DEFAULT_SERVER_URL = BuildConfig.MAINTAIN_API_URL.let { if (it.endsWith("/")) it else "$it/" }
+const val APPLICATION_ID = "android"
 
 class SettingsRepository(private val context: Context) {
     val serverUrl: Flow<String> = context.settingsDataStore.data.map { it[SERVER_URL] ?: DEFAULT_SERVER_URL }
@@ -33,17 +34,23 @@ class MaintainRepository(private val context: Context? = null) {
         val token = context?.getSharedPreferences("maintain_auth", Context.MODE_PRIVATE)?.getString("token", null)
         val client = OkHttpClient.Builder()
             .addInterceptor { chain ->
+                val requestUrl = chain.request().url.toString()
+                val isSupabase = BuildConfig.SUPABASE_URL.isNotBlank() &&
+                    requestUrl.startsWith(BuildConfig.SUPABASE_URL.trimEnd('/') + "/")
                 val request = chain.request().newBuilder().apply {
-                    if (baseUrl.startsWith(BuildConfig.SUPABASE_URL) && BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()) header("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
-                    if (!chain.request().url.encodedPath.contains("/auth/v1/")) header("X-Maintain-Application", "android")
-                    if (!chain.request().url.encodedPath.contains("/auth/v1/") && !token.isNullOrBlank()) {
-                        header("Authorization", "Bearer $token")
+                    if (isSupabase && BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()) {
+                        header("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                    }
+                    if (!isSupabase) {
+                        header("X-Maintain-Application", APPLICATION_ID)
+                        if (!token.isNullOrBlank()) header("Authorization", "Bearer $token")
                     }
                 }.build()
                 chain.proceed(request)
             }
             .addInterceptor(logging)
             .build()
+
         return Retrofit.Builder()
             .baseUrl(if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/")
             .client(client)
@@ -85,24 +92,28 @@ class MaintainRepository(private val context: Context? = null) {
     suspend fun trainModel(baseUrl: String): TrainModelResponse = api(baseUrl).trainModel()
 }
 
-
 class AuthRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("maintain_auth", Context.MODE_PRIVATE)
+
     fun token(): String? = prefs.getString("token", null)
     fun refreshToken(): String? = prefs.getString("refresh_token", null)
+
     fun save(token: String, refreshToken: String? = null) {
         prefs.edit().putString("token", token).apply()
         if (!refreshToken.isNullOrBlank()) prefs.edit().putString("refresh_token", refreshToken).apply()
     }
-    fun clear() { prefs.edit().remove("token").remove("refresh_token").apply() }
+
+    fun clear() {
+        prefs.edit().remove("token").remove("refresh_token").apply()
+    }
 
     private suspend fun refreshAccessToken(): Boolean {
         val refresh = refreshToken() ?: return false
         return runCatching {
             val response = MaintainRepository(context).authApi(BuildConfig.SUPABASE_URL)
                 .supabaseRefresh(SupabaseRefreshRequest(refresh))
-            val token = response.access_token ?: return@runCatching false
-            save(token, response.refresh_token ?: refresh)
+            val nextToken = response.access_token ?: return@runCatching false
+            save(nextToken, response.refresh_token ?: refresh)
             true
         }.getOrDefault(false)
     }
@@ -116,16 +127,25 @@ class AuthRepository(private val context: Context) {
     }
 
     suspend fun login(email: String, password: String): Result<AuthMeResponse> {
+        if (BuildConfig.SUPABASE_URL.isBlank() || BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) {
+            return Result.failure(IllegalStateException("Supabase configuration is missing from this Android build."))
+        }
+
         val supabaseApi = MaintainRepository(context).authApi(BuildConfig.SUPABASE_URL)
         val response = supabaseApi.supabaseLogin(SupabaseLoginRequest(email, password))
-        val token = response.access_token ?: return Result.failure(IllegalStateException("No access token returned"))
-        save(token, response.refresh_token)
+        val accessToken = response.access_token
+            ?: return Result.failure(IllegalStateException("Supabase did not return an access token."))
+
+        save(accessToken, response.refresh_token)
+
         val backendApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
         return runCatching {
             backendApi.syncSupabase()
-            backendApi.me().also { me ->
-                require(me.role != null && me.organization_id != null) { "Account is not authorized for the Android application" }
+            val me = backendApi.me()
+            require(me.organization_id != null && !me.username.isNullOrBlank()) {
+                "The Supabase account is not linked to a MAINTAIN AI organization."
             }
+            me
         }
     }
 }
