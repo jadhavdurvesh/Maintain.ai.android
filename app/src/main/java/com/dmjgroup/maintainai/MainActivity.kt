@@ -107,11 +107,11 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
     var data by mutableStateOf(DashboardData()); private set
     var loading by mutableStateOf(false); private set
     var error by mutableStateOf<String?>(null); private set
-    var serverUrl by mutableStateOf(DEFAULT_SERVER_URL); private set
-    var lastUpdated by mutableStateOf(""); private set
+    var serverUrl: String by mutableStateOf(DEFAULT_SERVER_URL); private set
+    var lastUpdated: String by mutableStateOf(""); private set
     private var syncing = false
-    var realtimeStatus by mutableStateOf("offline"); private set
-    var liveTelemetry by mutableStateOf<Map<Int, LiveTelemetry>>(emptyMap()); private set
+    var realtimeStatus: String by mutableStateOf("offline"); private set
+    var liveTelemetry: Map<Int, LiveTelemetry> by mutableStateOf(emptyMap()); private set
     private val realtime by lazy {
         RealtimeTelemetry(getApplication(), viewModelScope, { reading ->
             liveTelemetry = liveTelemetry + (reading.machineId to reading)
