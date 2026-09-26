@@ -15,7 +15,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 private val Context.settingsDataStore by preferencesDataStore("settings")
 private val SERVER_URL = stringPreferencesKey("server_url")
 
-const val DEFAULT_SERVER_URL = BuildConfig.MAINTAIN_API_URL.let { if (it.endsWith("/")) it else "$it/" }
+val DEFAULT_SERVER_URL: String = BuildConfig.MAINTAIN_API_URL.let { if (it.endsWith("/")) it else "$it/" }
 const val APPLICATION_ID = "android"
 
 class SettingsRepository(private val context: Context) {
