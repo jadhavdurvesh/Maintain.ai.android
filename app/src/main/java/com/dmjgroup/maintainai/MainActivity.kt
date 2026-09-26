@@ -97,7 +97,7 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
     var authenticated by mutableStateOf(auth.token() != null); private set
     fun login(email: String, password: String) = viewModelScope.launch {
         error = null
-        auth.login(email, password).onSuccess { me ->
+        auth.login(email, password).onSuccess {
             authenticated = true
             refresh()
         }.onFailure { auth.clear(); authenticated = false; error = it.message ?: "Sign in failed or Android access is not enabled." }
@@ -175,7 +175,6 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
 }
 
 @Composable
-@Composable
 fun MaintainApp(vm: MainViewModel = viewModel()) {
     if (!vm.authenticated) { LoginScreen(vm); return }
     val nav = rememberNavController()
@@ -204,8 +203,6 @@ fun MaintainApp(vm: MainViewModel = viewModel()) {
         }
     }
 }
-
-
 
 @Composable
 private fun LoginScreen(vm: MainViewModel) {
