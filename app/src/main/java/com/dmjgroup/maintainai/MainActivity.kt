@@ -143,6 +143,7 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
     var data by mutableStateOf(DashboardData()); private set
     var loading by mutableStateOf(false); private set
     var error by mutableStateOf<String?>(null); private set
+    fun setError(message: String?) { error = message }
     var serverUrl: String by mutableStateOf(DEFAULT_SERVER_URL); private set
     var lastUpdated: String by mutableStateOf(""); private set
     private var syncing = false
@@ -305,11 +306,10 @@ private fun PasswordChangeScreen(vm: MainViewModel) {
             enabled = !submitting,
             onClick = {
                 if (password.length < 8 || password != confirm) {
-                    vm.error = "Use at least 8 characters and make both passwords match."
+                    vm.setError("Use at least 8 characters and make both passwords match.")
                 } else {
                     submitting = true
                     vm.changePassword(password)
-                    submitting = false
                 }
             },
             modifier = Modifier.fillMaxWidth()
