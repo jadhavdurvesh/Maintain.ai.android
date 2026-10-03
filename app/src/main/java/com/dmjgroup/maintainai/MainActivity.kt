@@ -94,15 +94,51 @@ class MainActivity : ComponentActivity() {
 
 class MainViewModel(application: android.app.Application) : AndroidViewModel(application) {
     private val auth = AuthRepository(application)
-    var authenticated by mutableStateOf(auth.token() != null); private set
+    var authenticated by mutableStateOf(false); private set
+    var initializing by mutableStateOf(true); private set
+    var passwordChangeRequired by mutableStateOf(false); private set
+
     fun login(email: String, password: String) = viewModelScope.launch {
         error = null
-        auth.login(email, password).onSuccess {
+        auth.login(email, password).onSuccess { me ->
             authenticated = true
-            refresh()
-        }.onFailure { auth.clear(); authenticated = false; error = it.message ?: "Sign in failed or Android access is not enabled." }
+            passwordChangeRequired = me.password_change_required == true
+            initializing = false
+            if (!passwordChangeRequired) refresh()
+        }.onFailure {
+            auth.clear()
+            authenticated = false
+            passwordChangeRequired = false
+            initializing = false
+            error = it.message ?: "Sign in failed."
+        }
     }
-    fun logout() { realtime.stop(); auth.clear(); authenticated = false; data = DashboardData(); liveTelemetry = emptyMap() }
+
+    fun changePassword(newPassword: String) = viewModelScope.launch {
+        error = null
+        auth.changePassword(newPassword).onSuccess {
+            passwordChangeRequired = false
+            auth.session().onSuccess { me ->
+                authenticated = true
+                passwordChangeRequired = me.password_change_required == true
+                if (!passwordChangeRequired) refresh()
+            }.onFailure {
+                auth.clear()
+                authenticated = false
+                passwordChangeRequired = false
+                error = it.message ?: "Session could not be restored."
+            }
+        }.onFailure { error = it.message ?: "Password change failed." }
+    }
+
+    fun logout() {
+        realtime.stop()
+        auth.clear()
+        authenticated = false
+        passwordChangeRequired = false
+        data = DashboardData()
+        liveTelemetry = emptyMap()
+    }
 
     var data by mutableStateOf(DashboardData()); private set
     var loading by mutableStateOf(false); private set
@@ -122,13 +158,22 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
 
     init {
         viewModelScope.launch {
-            if (authenticated) {
-                auth.session().onFailure {
+            val hasStoredSession = auth.token() != null
+            if (hasStoredSession) {
+                auth.session().onSuccess { me ->
+                    authenticated = true
+                    passwordChangeRequired = me.password_change_required == true
+                }.onFailure {
                     auth.clear()
                     authenticated = false
+                    passwordChangeRequired = false
                 }
             }
-            if (authenticated) { refreshSafely(silent = true); startRealtime() }
+            initializing = false
+            if (authenticated && !passwordChangeRequired) {
+                refreshSafely(silent = true)
+                startRealtime()
+            }
             while (isActive) {
                 delay(10_000)
                 refreshSafely(silent = true)
@@ -176,7 +221,18 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
 
 @Composable
 fun MaintainApp(vm: MainViewModel = viewModel()) {
+    if (vm.initializing) {
+        MaterialTheme(
+            colorScheme = darkColorScheme(primary = Cyan, background = AppBackground, surface = Surface, onBackground = TextPrimary, onSurface = TextPrimary)
+        ) {
+            Box(Modifier.fillMaxSize().background(AppBackground), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Cyan)
+            }
+        }
+        return
+    }
     if (!vm.authenticated) { LoginScreen(vm); return }
+    if (vm.passwordChangeRequired) { PasswordChangeScreen(vm); return }
     val nav = rememberNavController()
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -225,6 +281,41 @@ private fun LoginScreen(vm: MainViewModel) {
         ) { Text("Sign in") }
         vm.error?.let { Text(it, color = Red, modifier = Modifier.padding(top = 12.dp)) }
         Text("Use the account invited by your company administrator.", color = TextMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 18.dp))
+    }
+}
+
+@Composable
+private fun PasswordChangeScreen(vm: MainViewModel) {
+    var password by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    var submitting by remember { mutableStateOf(false) }
+
+    Column(
+        Modifier.fillMaxSize().background(AppBackground).padding(28.dp),
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Set your password", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Text("Your administrator provided a temporary password. Choose a new private password before continuing.", color = TextMuted)
+        Spacer(Modifier.height(24.dp))
+        OutlinedTextField(password, { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text("New password") }, singleLine = true)
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(confirm, { confirm = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Confirm password") }, singleLine = true)
+        Spacer(Modifier.height(18.dp))
+        Button(
+            enabled = !submitting,
+            onClick = {
+                if (password.length < 8 || password != confirm) {
+                    vm.error = "Use at least 8 characters and make both passwords match."
+                } else {
+                    submitting = true
+                    vm.changePassword(password)
+                    submitting = false
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(if (submitting) "Saving…" else "Set password & continue") }
+        vm.error?.let { Text(it, color = Red, modifier = Modifier.padding(top = 12.dp)) }
+        TextButton(onClick = { vm.logout() }, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
     }
 }
 
