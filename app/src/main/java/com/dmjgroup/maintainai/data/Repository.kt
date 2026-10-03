@@ -11,6 +11,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 
 private val Context.settingsDataStore by preferencesDataStore("settings")
 private val SERVER_URL = stringPreferencesKey("server_url")
@@ -34,6 +35,10 @@ class MaintainRepository(private val context: Context? = null) {
         val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
         val token = context?.getSharedPreferences("maintain_auth", Context.MODE_PRIVATE)?.getString("token", null)
         val client = OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .writeTimeout(20, TimeUnit.SECONDS)
+            .callTimeout(30, TimeUnit.SECONDS)
             .addInterceptor { chain ->
                 val requestUrl = chain.request().url.toString()
                 val isSupabase = BuildConfig.SUPABASE_URL.isNotBlank() &&
