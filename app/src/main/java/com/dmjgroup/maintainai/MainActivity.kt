@@ -52,6 +52,7 @@ import com.dmjgroup.maintainai.data.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
@@ -137,13 +138,21 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
 
     private fun friendlyAuthError(t: Throwable): String {
         val message = t.message.orEmpty()
+        val serverDetail = (t as? HttpException)?.response()?.errorBody()?.string().orEmpty()
+        val detail = Regex(""""detail"\s*:\s*"([^"]+)"""")
+            .find(serverDetail)?.groupValues?.getOrNull(1)
+            ?.replace("\\"", """)
+            .orEmpty()
+        val combined = listOf(message, detail).filter { it.isNotBlank() }.joinToString(" — ")
         return when {
             message.contains("Unable to resolve host", ignoreCase = true) -> "Unable to reach the MAINTAIN AI server. Check your connection."
             message.contains("timeout", ignoreCase = true) -> "The sign-in request timed out. Please try again."
-            message.contains("401", ignoreCase = true) || message.contains("invalid login", ignoreCase = true) -> "Incorrect email or password."
-            message.contains("403", ignoreCase = true) -> "Your account is not permitted to access MAINTAIN AI."
+            message.contains("401", ignoreCase = true) || detail.contains("invalid", ignoreCase = true) && detail.contains("password", ignoreCase = true) -> "Incorrect email or password."
+            message.contains("403", ignoreCase = true) -> if (detail.isNotBlank()) detail else "Your account is not permitted to access MAINTAIN AI."
+            message.contains("422", ignoreCase = true) -> if (detail.isNotBlank()) "Sign-in request was rejected: $detail" else "The sign-in request was rejected by the server."
+            message.contains("500", ignoreCase = true) || message.contains("503", ignoreCase = true) -> if (detail.isNotBlank()) detail else "MAINTAIN AI authentication service is temporarily unavailable."
             message.contains("Supabase configuration is missing", ignoreCase = true) -> "This APK is missing its authentication configuration. Build it again with the required GitHub secrets."
-            else -> if (message.isBlank()) "Sign in failed. Please try again." else message
+            else -> if (combined.isBlank()) "Sign in failed. Please try again." else combined
         }
     }
 
