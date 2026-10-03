@@ -121,7 +121,9 @@ class AuthRepository(private val context: Context) {
 
     suspend fun session(): Result<AuthMeResponse> {
         val backendApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
-        return runCatching { backendApi.me() }.recoverCatching { first ->
+        return runCatching {
+            backendApi.me()
+        }.recoverCatching { first ->
             if (!refreshAccessToken()) throw first
             MaintainRepository(context).authApi(DEFAULT_SERVER_URL).me()
         }
