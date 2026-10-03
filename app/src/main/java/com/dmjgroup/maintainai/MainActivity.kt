@@ -289,8 +289,6 @@ private fun LoginScreen(vm: MainViewModel) {
 private fun PasswordChangeScreen(vm: MainViewModel) {
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
-    var submitting by remember { mutableStateOf(false) }
-
     Column(
         Modifier.fillMaxSize().background(AppBackground).padding(28.dp),
         verticalArrangement = Arrangement.Center
@@ -303,17 +301,15 @@ private fun PasswordChangeScreen(vm: MainViewModel) {
         OutlinedTextField(confirm, { confirm = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Confirm password") }, singleLine = true)
         Spacer(Modifier.height(18.dp))
         Button(
-            enabled = !submitting,
             onClick = {
                 if (password.length < 8 || password != confirm) {
                     vm.setError("Use at least 8 characters and make both passwords match.")
                 } else {
-                    submitting = true
                     vm.changePassword(password)
                 }
             },
             modifier = Modifier.fillMaxWidth()
-        ) { Text(if (submitting) "Saving…" else "Set password & continue") }
+        ) { Text("Set password & continue") }
         vm.error?.let { Text(it, color = Red, modifier = Modifier.padding(top = 12.dp)) }
         TextButton(onClick = { vm.logout() }, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
     }
