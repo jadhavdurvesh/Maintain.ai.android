@@ -15,8 +15,18 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
-        buildConfigField("String", "MAINTAIN_API_URL", "\"${System.getenv("MAINTAIN_API_URL") ?: "https://maintain-ai-3.vercel.app"}\"")
-        buildConfigField("String", "SUPABASE_URL", "\"${System.getenv("SUPABASE_URL") ?: ""}\"")
+        val configuredMaintainApi = System.getenv("MAINTAIN_API_URL")?.trim().orEmpty()
+        val maintainApiUrl = configuredMaintainApi
+            .takeIf { it.startsWith("http://") || it.startsWith("https://") }
+            ?: "https://maintain-ai-3.vercel.app"
+        buildConfigField("String", "MAINTAIN_API_URL", "\"$maintainApiUrl\"")
+
+        val configuredSupabaseUrl = System.getenv("SUPABASE_URL")?.trim().orEmpty()
+        val supabaseUrl = configuredSupabaseUrl
+            .takeIf { it.startsWith("http://") || it.startsWith("https://") }
+            ?: ""
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${System.getenv("SUPABASE_PUBLISHABLE_KEY") ?: ""}\"")
     }
 
