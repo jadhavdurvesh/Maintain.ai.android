@@ -11,12 +11,14 @@ on:
 permissions:
   contents: read
 
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+  MAINTAIN_API_URL: ${{ secrets.MAINTAIN_API_URL }}
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,7 +41,23 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
+      - name: Verify Supabase authentication configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_URL" || { echo "Missing GitHub Actions secret: SUPABASE_URL"; exit 1; }
+          test -n "$SUPABASE_PUBLISHABLE_KEY" || { echo "Missing GitHub Actions secret: SUPABASE_PUBLISHABLE_KEY"; exit 1; }
+          if [ -n "$MAINTAIN_API_URL" ]; then
+            echo "Using configured MAINTAIN_API_URL: ${MAINTAIN_API_URL%/}"
+          else
+            echo "MAINTAIN_API_URL secret not set; app fallback will be used."
+          fi
+
       - name: Build installable APK
+        env:
+          MAINTAIN_API_URL: ${{ env.MAINTAIN_API_URL }}
+          SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ env.SUPABASE_PUBLISHABLE_KEY }}
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Upload APK artifact
