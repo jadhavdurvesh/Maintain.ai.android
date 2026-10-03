@@ -129,6 +129,14 @@ class AuthRepository(private val context: Context) {
         }
     }
 
+    suspend fun changePassword(newPassword: String): Result<Unit> {
+        val backendApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
+        return runCatching {
+            backendApi.changePassword(mapOf("new_password" to newPassword))
+            Unit
+        }
+    }
+
     suspend fun login(email: String, password: String): Result<AuthMeResponse> {
         if (BuildConfig.SUPABASE_URL.isBlank() || BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) {
             return Result.failure(IllegalStateException("Supabase configuration is missing from this Android build."))
