@@ -119,13 +119,34 @@ class AuthRepository(private val context: Context) {
         }.getOrDefault(false)
     }
 
+    /**
+     * Restores the same session contract used by the Workforce client:
+     * token -> optional refresh -> backend application sync -> /me.
+     *
+     * The Android application context remains "android"; the authentication
+     * authority is still Supabase and Maintain.ai remains the authorization
+     * authority.
+     */
     suspend fun session(): Result<AuthMeResponse> {
         val backendApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
         return runCatching {
-            backendApi.me()
+            // Same first-login contract as Workforce:
+            // Supabase authentication -> Maintain sync -> authoritative /me.
+            backendApi.syncSupabase()
+            val me = backendApi.me()
+            require(me.organization_id != null && !me.username.isNullOrBlank()) {
+                "The Supabase account is not linked to a MAINTAIN AI organization."
+            }
+            me
         }.recoverCatching { first ->
             if (!refreshAccessToken()) throw first
-            MaintainRepository(context).authApi(DEFAULT_SERVER_URL).me()
+            val refreshedApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
+            refreshedApi.syncSupabase()
+            val me = refreshedApi.me()
+            require(me.organization_id != null && !me.username.isNullOrBlank()) {
+                "The Supabase account is not linked to a MAINTAIN AI organization."
+            }
+            me
         }
     }
 
