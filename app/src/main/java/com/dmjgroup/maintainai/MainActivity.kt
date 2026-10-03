@@ -110,8 +110,8 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
             val result = runCatching { auth.login(email.trim(), password) }
                 .getOrElse { Result.failure(it) }
             result.onSuccess { me ->
-                authenticated = true
                 passwordChangeRequired = me.password_change_required == true
+                authenticated = !passwordChangeRequired
                 initializing = false
                 if (!passwordChangeRequired) refresh()
             }.onFailure {
@@ -192,8 +192,8 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
             val hasStoredSession = auth.token() != null
             if (hasStoredSession) {
                 auth.session().onSuccess { me ->
-                    authenticated = true
                     passwordChangeRequired = me.password_change_required == true
+                    authenticated = !passwordChangeRequired
                 }.onFailure {
                     auth.clear()
                     authenticated = false
