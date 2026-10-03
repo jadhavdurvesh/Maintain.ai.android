@@ -31,6 +31,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
@@ -97,20 +100,47 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
     var authenticated by mutableStateOf(false); private set
     var initializing by mutableStateOf(true); private set
     var passwordChangeRequired by mutableStateOf(false); private set
+    var loginBusy by mutableStateOf(false); private set
 
     fun login(email: String, password: String) = viewModelScope.launch {
+        if (loginBusy) return@launch
         error = null
-        auth.login(email, password).onSuccess { me ->
-            authenticated = true
-            passwordChangeRequired = me.password_change_required == true
-            initializing = false
-            if (!passwordChangeRequired) refresh()
-        }.onFailure {
+        loginBusy = true
+        try {
+            val result = runCatching { auth.login(email.trim(), password) }
+                .getOrElse { Result.failure(it) }
+            result.onSuccess { me ->
+                authenticated = true
+                passwordChangeRequired = me.password_change_required == true
+                initializing = false
+                if (!passwordChangeRequired) refresh()
+            }.onFailure {
+                auth.clear()
+                authenticated = false
+                passwordChangeRequired = false
+                initializing = false
+                error = friendlyAuthError(it)
+            }
+        } catch (t: Throwable) {
             auth.clear()
             authenticated = false
             passwordChangeRequired = false
             initializing = false
-            error = it.message ?: "Sign in failed."
+            error = friendlyAuthError(t)
+        } finally {
+            loginBusy = false
+        }
+    }
+
+    private fun friendlyAuthError(t: Throwable): String {
+        val message = t.message.orEmpty()
+        return when {
+            message.contains("Unable to resolve host", ignoreCase = true) -> "Unable to reach the MAINTAIN AI server. Check your connection."
+            message.contains("timeout", ignoreCase = true) -> "The sign-in request timed out. Please try again."
+            message.contains("401", ignoreCase = true) || message.contains("invalid login", ignoreCase = true) -> "Incorrect email or password."
+            message.contains("403", ignoreCase = true) -> "Your account is not permitted to access MAINTAIN AI."
+            message.contains("Supabase configuration is missing", ignoreCase = true) -> "This APK is missing its authentication configuration. Build it again with the required GitHub secrets."
+            else -> if (message.isBlank()) "Sign in failed. Please try again." else message
         }
     }
 
@@ -265,23 +295,120 @@ fun MaintainApp(vm: MainViewModel = viewModel()) {
 private fun LoginScreen(vm: MainViewModel) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    Column(
-        Modifier.fillMaxSize().background(AppBackground).padding(28.dp),
-        verticalArrangement = Arrangement.Center
+    var passwordVisible by remember { mutableStateOf(false) }
+    val canSubmit = email.isNotBlank() && password.isNotBlank() && !vm.loginBusy
+
+    Box(
+        Modifier.fillMaxSize().background(AppBackground).padding(horizontal = 22.dp, vertical = 28.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Text("MAINTAIN AI", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
-        Text("Operations control center", color = TextMuted)
-        Spacer(Modifier.height(28.dp))
-        OutlinedTextField(email, { email = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Work email") }, singleLine = true)
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(password, { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Password") }, singleLine = true)
-        Spacer(Modifier.height(18.dp))
-        Button(
-            onClick = { if (email.isNotBlank() && password.isNotBlank()) vm.login(email.trim(), password) },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("Sign in") }
-        vm.error?.let { Text(it, color = Red, modifier = Modifier.padding(top = 12.dp)) }
-        Text("Use the account invited by your company administrator.", color = TextMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 18.dp))
+        Column(
+            Modifier.fillMaxWidth().widthIn(max = 460.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                Modifier.size(68.dp).clip(RoundedCornerShape(20.dp)).background(Cyan.copy(alpha = .12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.PrecisionManufacturing, null, tint = Cyan, modifier = Modifier.size(36.dp))
+            }
+            Spacer(Modifier.height(18.dp))
+            Text("MAINTAIN AI", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Text("Industrial maintenance intelligence", color = TextMuted, style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(26.dp))
+
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Surface),
+                shape = RoundedCornerShape(24.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Column(Modifier.padding(22.dp)) {
+                    Text("Welcome back", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(5.dp))
+                    Text("Sign in to your maintenance workspace.", color = TextMuted, style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(20.dp))
+
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it; if (vm.error != null) vm.updateError(null) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Work email") },
+                        placeholder = { Text("name@company.com") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Email),
+                        leadingIcon = { Icon(Icons.Default.Email, null) },
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it; if (vm.error != null) vm.updateError(null) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Password") },
+                        singleLine = true,
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Password),
+                        leadingIcon = { Icon(Icons.Default.Lock, null) },
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                                )
+                            }
+                        },
+                        shape = RoundedCornerShape(14.dp)
+                    )
+
+                    vm.error?.let {
+                        Spacer(Modifier.height(12.dp))
+                        Surface(
+                            color = Red.copy(alpha = .10f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.Top) {
+                                Icon(Icons.Default.ErrorOutline, null, tint = Red, modifier = Modifier.size(19.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(it, color = TextPrimary, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(18.dp))
+                    Button(
+                        onClick = { vm.login(email, password) },
+                        enabled = canSubmit,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        if (vm.loginBusy) {
+                            CircularProgressIndicator(Modifier.size(19.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                            Spacer(Modifier.width(9.dp))
+                            Text("Signing in…")
+                        } else {
+                            Icon(Icons.Default.Login, null, modifier = Modifier.size(19.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Sign in", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        "Use the account provided by your company administrator.",
+                        color = TextMuted,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(7.dp).clip(CircleShape).background(Green))
+                Spacer(Modifier.width(7.dp))
+                Text("Secure MAINTAIN AI operations", color = TextMuted, style = MaterialTheme.typography.labelSmall)
+            }
+        }
     }
 }
 
