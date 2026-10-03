@@ -298,115 +298,251 @@ private fun LoginScreen(vm: MainViewModel) {
     var passwordVisible by remember { mutableStateOf(false) }
     val canSubmit = email.isNotBlank() && password.isNotBlank() && !vm.loginBusy
 
-    Box(
-        Modifier.fillMaxSize().background(AppBackground).padding(horizontal = 22.dp, vertical = 28.dp),
-        contentAlignment = Alignment.Center
+    MaterialTheme(
+        colorScheme = darkColorScheme(
+            primary = Cyan,
+            background = AppBackground,
+            surface = Surface,
+            onBackground = TextPrimary,
+            onSurface = TextPrimary
+        )
     ) {
-        Column(
-            Modifier.fillMaxWidth().widthIn(max = 460.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(AppBackground)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 28.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                Modifier.size(68.dp).clip(RoundedCornerShape(20.dp)).background(Cyan.copy(alpha = .12f)),
-                contentAlignment = Alignment.Center
+            Column(
+                Modifier.fillMaxWidth().widthIn(max = 460.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(Icons.Default.PrecisionManufacturing, null, tint = Cyan, modifier = Modifier.size(36.dp))
-            }
-            Spacer(Modifier.height(18.dp))
-            Text("MAINTAIN AI", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
-            Text("Industrial maintenance intelligence", color = TextMuted, style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(26.dp))
-
-            Card(
-                Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Surface),
-                shape = RoundedCornerShape(24.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-            ) {
-                Column(Modifier.padding(22.dp)) {
-                    Text("Welcome back", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(5.dp))
-                    Text("Sign in to your maintenance workspace.", color = TextMuted, style = MaterialTheme.typography.bodySmall)
-                    Spacer(Modifier.height(20.dp))
-
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it; if (vm.error != null) vm.updateError(null) },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Work email") },
-                        placeholder = { Text("name@company.com") },
-                        singleLine = true,
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Email),
-                        leadingIcon = { Icon(Icons.Default.Email, null) },
-                        shape = RoundedCornerShape(14.dp)
+                Box(
+                    Modifier
+                        .size(76.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Surface2),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.PrecisionManufacturing,
+                        contentDescription = null,
+                        tint = Cyan,
+                        modifier = Modifier.size(42.dp)
                     )
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it; if (vm.error != null) vm.updateError(null) },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Password") },
-                        singleLine = true,
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Password),
-                        leadingIcon = { Icon(Icons.Default.Lock, null) },
-                        trailingIcon = {
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(
-                                    if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = if (passwordVisible) "Hide password" else "Show password"
-                                )
+                }
+
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "MAINTAIN AI",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = TextPrimary
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    "Industrial maintenance intelligence",
+                    color = TextMuted,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(Modifier.height(28.dp))
+
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Surface),
+                    shape = RoundedCornerShape(24.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+                ) {
+                    Column(Modifier.padding(22.dp)) {
+                        Text(
+                            "Welcome back",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Spacer(Modifier.height(5.dp))
+                        Text(
+                            "Sign in to your maintenance workspace.",
+                            color = TextMuted,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(Modifier.height(22.dp))
+
+                        Text(
+                            "EMAIL",
+                            color = Cyan,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(7.dp))
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = {
+                                email = it
+                                if (vm.error != null) vm.updateError(null)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("name@company.com", color = TextMuted) },
+                            singleLine = true,
+                            textStyle = LocalTextStyle.current.copy(color = TextPrimary),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = KeyboardType.Email
+                            ),
+                            leadingIcon = {
+                                Icon(Icons.Default.Email, null, tint = Cyan)
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Cyan,
+                                unfocusedBorderColor = TextMuted.copy(alpha = .55f),
+                                focusedLabelColor = Cyan,
+                                unfocusedLabelColor = TextMuted,
+                                cursorColor = Cyan,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            ),
+                            shape = RoundedCornerShape(14.dp)
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "PASSWORD",
+                            color = Cyan,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(7.dp))
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = {
+                                password = it
+                                if (vm.error != null) vm.updateError(null)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Enter your password", color = TextMuted) },
+                            singleLine = true,
+                            textStyle = LocalTextStyle.current.copy(color = TextPrimary),
+                            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = KeyboardType.Password
+                            ),
+                            leadingIcon = {
+                                Icon(Icons.Default.Lock, null, tint = Cyan)
+                            },
+                            trailingIcon = {
+                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                    Icon(
+                                        if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                                        tint = TextMuted
+                                    )
+                                }
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Cyan,
+                                unfocusedBorderColor = TextMuted.copy(alpha = .55f),
+                                cursorColor = Cyan,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            ),
+                            shape = RoundedCornerShape(14.dp)
+                        )
+
+                        vm.error?.let {
+                            Spacer(Modifier.height(14.dp))
+                            Surface(
+                                color = Red.copy(alpha = .10f),
+                                shape = RoundedCornerShape(13.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Red.copy(alpha = .25f))
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(12.dp),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Icon(
+                                        Icons.Default.ErrorOutline,
+                                        null,
+                                        tint = Red,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(9.dp))
+                                    Text(
+                                        it,
+                                        color = TextPrimary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        lineHeight = androidx.compose.ui.unit.sp(18)
+                                    )
+                                }
                             }
-                        },
-                        shape = RoundedCornerShape(14.dp)
-                    )
+                        }
 
-                    vm.error?.let {
-                        Spacer(Modifier.height(12.dp))
-                        Surface(
-                            color = Red.copy(alpha = .10f),
-                            shape = RoundedCornerShape(12.dp)
+                        Spacer(Modifier.height(20.dp))
+                        Button(
+                            onClick = { vm.login(email, password) },
+                            enabled = canSubmit,
+                            modifier = Modifier.fillMaxWidth().height(54.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Cyan,
+                                contentColor = AppBackground,
+                                disabledContainerColor = Surface2,
+                                disabledContentColor = TextMuted
+                            )
                         ) {
-                            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.Top) {
-                                Icon(Icons.Default.ErrorOutline, null, tint = Red, modifier = Modifier.size(19.dp))
+                            if (vm.loginBusy) {
+                                CircularProgressIndicator(
+                                    Modifier.size(19.dp),
+                                    strokeWidth = 2.dp,
+                                    color = AppBackground
+                                )
+                                Spacer(Modifier.width(9.dp))
+                                Text("Signing in…", fontWeight = FontWeight.Bold)
+                            } else {
+                                Icon(Icons.Default.Login, null, modifier = Modifier.size(20.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text(it, color = TextPrimary, style = MaterialTheme.typography.bodySmall)
+                                Text("Sign in", fontWeight = FontWeight.Bold)
                             }
                         }
-                    }
 
-                    Spacer(Modifier.height(18.dp))
-                    Button(
-                        onClick = { vm.login(email, password) },
-                        enabled = canSubmit,
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        if (vm.loginBusy) {
-                            CircularProgressIndicator(Modifier.size(19.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                            Spacer(Modifier.width(9.dp))
-                            Text("Signing in…")
-                        } else {
-                            Icon(Icons.Default.Login, null, modifier = Modifier.size(19.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Sign in", fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(18.dp))
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            HorizontalDivider(Modifier.weight(1f), color = TextMuted.copy(alpha = .18f))
+                            Text(
+                                "  SECURE ACCESS  ",
+                                color = TextMuted,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            HorizontalDivider(Modifier.weight(1f), color = TextMuted.copy(alpha = .18f))
                         }
-                    }
 
-                    Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            "Use the account provided by your company administrator.",
+                            color = TextMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(7.dp).clip(CircleShape).background(Green))
+                    Spacer(Modifier.width(7.dp))
                     Text(
-                        "Use the account provided by your company administrator.",
+                        "MAINTAIN AI services online",
                         color = TextMuted,
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
-            }
-
-            Spacer(Modifier.height(18.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(7.dp).clip(CircleShape).background(Green))
-                Spacer(Modifier.width(7.dp))
-                Text("Secure MAINTAIN AI operations", color = TextMuted, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
