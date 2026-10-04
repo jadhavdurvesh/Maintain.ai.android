@@ -135,9 +135,12 @@ class AuthRepository(private val context: Context) {
     suspend fun session(): Result<AuthMeResponse> {
         val backendApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
         return runCatching {
-            // Same first-login contract as Workforce:
-            // Supabase authentication -> Maintain sync -> authoritative /me.
-            backendApi.syncSupabase()
+            // Match the proven Workforce restore flow: an existing Supabase
+            // session is already linked to the Maintain.ai user, so restore
+            // the authoritative backend session with /me first. Do not call
+            // /supabase/sync on every app launch; that endpoint is for initial
+            // identity linking/access provisioning and adds an unnecessary
+            // network dependency to normal session restoration.
             val me = backendApi.me()
             require(me.organization_id != null && !me.username.isNullOrBlank()) {
                 "The Supabase account is not linked to a MAINTAIN AI organization."
@@ -146,7 +149,6 @@ class AuthRepository(private val context: Context) {
         }.recoverCatching { first ->
             if (!refreshAccessToken()) throw first
             val refreshedApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
-            refreshedApi.syncSupabase()
             val me = refreshedApi.me()
             require(me.organization_id != null && !me.username.isNullOrBlank()) {
                 "The Supabase account is not linked to a MAINTAIN AI organization."
