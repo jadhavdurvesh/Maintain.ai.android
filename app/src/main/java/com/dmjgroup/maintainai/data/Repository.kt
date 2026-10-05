@@ -76,7 +76,7 @@ class MaintainRepository(private val context: Context? = null) {
                     ?.getString("token", null)
 
                 val request = chain.request().newBuilder().apply {
-                    if (isSupabase && BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()) {
+                    if (isSupabase && configuredSupabaseKey.isNotBlank()) {
                         header("apikey", configuredSupabaseKey)
                     }
 
