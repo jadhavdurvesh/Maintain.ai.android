@@ -34,7 +34,7 @@ class SettingsRepository(private val context: Context) {
 class MaintainRepository(private val context: Context? = null) {
     private fun api(baseUrl: String): MaintainApi {
         val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
-        val token = context?.getSharedPreferences("maintain_auth", Context.MODE_PRIVATE)?.getString("token", null)
+
         val client = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
@@ -44,15 +44,27 @@ class MaintainRepository(private val context: Context? = null) {
                 val requestUrl = chain.request().url.toString()
                 val isSupabase = BuildConfig.SUPABASE_URL.isNotBlank() &&
                     requestUrl.startsWith(BuildConfig.SUPABASE_URL.trimEnd('/') + "/")
+
+                // Read the token for every request, not when the Retrofit client
+                // is created. This is important immediately after Supabase login
+                // and after a token refresh.
+                val token = context
+                    ?.getSharedPreferences("maintain_auth", Context.MODE_PRIVATE)
+                    ?.getString("token", null)
+
                 val request = chain.request().newBuilder().apply {
                     if (isSupabase && BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()) {
                         header("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
                     }
+
                     if (!isSupabase) {
                         header("X-Maintain-Application", APPLICATION_ID)
-                        if (!token.isNullOrBlank()) header("Authorization", "Bearer $token")
+                        if (!token.isNullOrBlank()) {
+                            header("Authorization", "Bearer $token")
+                        }
                     }
                 }.build()
+
                 chain.proceed(request)
             }
             .addInterceptor(logging)
@@ -89,14 +101,30 @@ class MaintainRepository(private val context: Context? = null) {
                 )
             }
         }.getOrDefault(emptyList())
-        return DashboardData(machines, alerts, workOrders, aiInsights, modelStatus)
+
+        return DashboardData(
+            machines,
+            alerts,
+            workOrders,
+            aiInsights,
+            modelStatus
+        )
     }
 
-    suspend fun readings(baseUrl: String, machineId: Int): List<SensorReading> = api(baseUrl).getReadings(machineId)
-    suspend fun alerts(baseUrl: String): List<Alert> = api(baseUrl).getAlerts()
-    suspend fun modelStatus(baseUrl: String): ModelStatus = api(baseUrl).getModelStatus()
-    suspend fun riskPredictions(baseUrl: String): RiskPredictionsResponse = api(baseUrl).getRiskPredictions()
-    suspend fun trainModel(baseUrl: String): TrainModelResponse = api(baseUrl).trainModel()
+    suspend fun readings(baseUrl: String, machineId: Int): List<SensorReading> =
+        api(baseUrl).getReadings(machineId)
+
+    suspend fun alerts(baseUrl: String): List<Alert> =
+        api(baseUrl).getAlerts()
+
+    suspend fun modelStatus(baseUrl: String): ModelStatus =
+        api(baseUrl).getModelStatus()
+
+    suspend fun riskPredictions(baseUrl: String): RiskPredictionsResponse =
+        api(baseUrl).getRiskPredictions()
+
+    suspend fun trainModel(baseUrl: String): TrainModelResponse =
+        api(baseUrl).trainModel()
 }
 
 class AuthRepository(private val context: Context) {
