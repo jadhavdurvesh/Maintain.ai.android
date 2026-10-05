@@ -134,8 +134,11 @@ class AuthRepository(private val context: Context) {
     fun refreshToken(): String? = prefs.getString("refresh_token", null)
 
     fun save(token: String, refreshToken: String? = null) {
-        prefs.edit().putString("token", token).apply()
-        if (!refreshToken.isNullOrBlank()) prefs.edit().putString("refresh_token", refreshToken).apply()
+        prefs.edit().apply {
+            putString("token", token)
+            if (!refreshToken.isNullOrBlank()) putString("refresh_token", refreshToken)
+            apply()
+        }
     }
 
     fun clear() {
@@ -145,7 +148,8 @@ class AuthRepository(private val context: Context) {
     private suspend fun refreshAccessToken(): Boolean {
         val refresh = refreshToken() ?: return false
         return runCatching {
-            val response = MaintainRepository(context).authApi(BuildConfig.SUPABASE_URL)
+            val response = MaintainRepository(context)
+                .authApi(BuildConfig.SUPABASE_URL)
                 .supabaseRefresh(SupabaseRefreshRequest(refresh))
             val nextToken = response.access_token ?: return@runCatching false
             save(nextToken, response.refresh_token ?: refresh)
@@ -153,36 +157,51 @@ class AuthRepository(private val context: Context) {
         }.getOrDefault(false)
     }
 
-    /**
-     * Restores the same session contract used by the Workforce client:
-     * token -> optional refresh -> backend application sync -> /me.
-     *
-     * The Android application context remains "android"; the authentication
-     * authority is still Supabase and Maintain.ai remains the authorization
-     * authority.
-     */
+    private fun requireMaintainUser(me: AuthMeResponse): AuthMeResponse {
+        require(me.organization_id != null && !me.username.isNullOrBlank()) {
+            "SESSION: The authenticated Supabase account is not linked to a Maintain.ai organization."
+        }
+        return me
+    }
+
     suspend fun session(): Result<AuthMeResponse> {
-        val backendApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
+        if (BuildConfig.SUPABASE_URL.isBlank() || BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) {
+            return Result.failure(IllegalStateException("AUTHENTICATION: Supabase configuration is missing from this Android build."))
+        }
+
         return runCatching {
-            // Match the proven Workforce restore flow: an existing Supabase
-            // session is already linked to the Maintain.ai user, so restore
-            // the authoritative backend session with /me first. Do not call
-            // /supabase/sync on every app launch; that endpoint is for initial
-            // identity linking/access provisioning and adds an unnecessary
-            // network dependency to normal session restoration.
-            val me = backendApi.me()
-            require(me.organization_id != null && !me.username.isNullOrBlank()) {
-                "The Supabase account is not linked to a MAINTAIN AI organization."
+            if (refreshToken() != null) refreshAccessToken()
+
+            if (token().isNullOrBlank()) {
+                throw IllegalStateException("SESSION: No Supabase session is stored on this device.")
             }
-            me
+
+            val backendApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
+
+            val sync = try {
+                backendApi.syncSupabase()
+            } catch (first: Throwable) {
+                if (!refreshAccessToken()) {
+                    throw IllegalStateException(
+                        "AUTHORIZATION: Maintain.ai session synchronization failed. " + httpDetail(first),
+                        first
+                    )
+                }
+                MaintainRepository(context).authApi(DEFAULT_SERVER_URL).syncSupabase()
+            }
+
+            if (sync["needs_onboarding"] == true) {
+                throw IllegalStateException(
+                    "AUTHORIZATION: This Supabase account is not linked to a Maintain.ai account yet."
+                )
+            }
+
+            requireMaintainUser(
+                MaintainRepository(context).authApi(DEFAULT_SERVER_URL).me()
+            )
         }.recoverCatching { first ->
-            if (!refreshAccessToken()) throw first
-            val refreshedApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
-            val me = refreshedApi.me()
-            require(me.organization_id != null && !me.username.isNullOrBlank()) {
-                "The Supabase account is not linked to a MAINTAIN AI organization."
-            }
-            me
+            clear()
+            throw first
         }
     }
 
@@ -196,89 +215,75 @@ class AuthRepository(private val context: Context) {
 
     suspend fun login(email: String, password: String): Result<AuthMeResponse> {
         if (BuildConfig.SUPABASE_URL.isBlank() || BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) {
-            return Result.failure(IllegalStateException("Supabase configuration is missing from this Android build."))
+            return Result.failure(IllegalStateException("AUTHENTICATION: Supabase configuration is missing from this Android build."))
         }
 
         return runCatching {
-            val supabaseApi = MaintainRepository(context).authApi(BuildConfig.SUPABASE_URL)
-
             val response = try {
-                withTimeout(10_000L) {
-                    supabaseApi.supabaseLogin(SupabaseLoginRequest(email, password))
+                withTimeout(15_000L) {
+                    MaintainRepository(context).authApi(BuildConfig.SUPABASE_URL)
+                        .supabaseLogin(SupabaseLoginRequest(email.trim(), password))
                 }
             } catch (t: Throwable) {
                 val detail = if (t is kotlinx.coroutines.TimeoutCancellationException) {
-                    "Supabase did not respond within 10 seconds."
+                    "Supabase did not respond within 15 seconds."
                 } else {
                     httpDetail(t)
                 }
-                throw IllegalStateException("AUTHENTICATION: Supabase sign-in failed. ${detail}", t)
+                throw IllegalStateException("AUTHENTICATION: Supabase sign-in failed. " + detail, t)
             }
 
             val accessToken = response.access_token
-                ?: throw IllegalStateException("AUTHENTICATION: Supabase returned a response without an access token.")
+                ?: throw IllegalStateException("AUTHENTICATION: Supabase returned no access token.")
 
             save(accessToken, response.refresh_token)
 
-            // Existing Maintain.ai users should be able to enter directly
-            // through the authoritative /me endpoint. Sync is only a fallback
-            // for accounts that still need their Supabase identity linked.
             val backendApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
 
-            try {
-                return@runCatching backendApi.me().also { me ->
-                    require(me.organization_id != null && !me.username.isNullOrBlank()) {
-                        "SESSION: The Supabase account is not linked to a MAINTAIN AI organization."
-                    }
-                }
-            } catch (first: Throwable) {
-                val syncResult = try {
-                    backendApi.syncSupabase()
-                } catch (sync: Throwable) {
-                    clear()
-                    throw IllegalStateException(
-                        "AUTHORIZATION: Maintain.ai application access failed. " +
-                            "Initial session: ${httpDetail(first)}; sync: ${httpDetail(sync)}",
-                        sync
-                    )
-                }
-
-                val needsOnboarding = syncResult["needs_onboarding"] == true
-                if (needsOnboarding) {
-                    clear()
-                    throw IllegalStateException(
-                        "AUTHORIZATION: This Supabase account is not linked to a Maintain.ai account yet."
-                    )
-                }
-
-                try {
-                    backendApi.me().also { me ->
-                        require(me.organization_id != null && !me.username.isNullOrBlank()) {
-                            "SESSION: The Supabase account is not linked to a MAINTAIN AI organization."
-                        }
-                    }
-                } catch (second: Throwable) {
-                    clear()
-                    throw IllegalStateException(
-                        "SESSION: Maintain.ai could not restore your account. " +
-                            "Initial session: ${httpDetail(first)}; after sync: ${httpDetail(second)}",
-                        second
-                    )
-                }
+            val sync = try {
+                backendApi.syncSupabase()
+            } catch (t: Throwable) {
+                clear()
+                throw IllegalStateException(
+                    "AUTHORIZATION: Maintain.ai application synchronization failed. " + httpDetail(t),
+                    t
+                )
             }
+
+            if (sync["needs_onboarding"] == true) {
+                clear()
+                throw IllegalStateException(
+                    "AUTHORIZATION: This Supabase account is not linked to a Maintain.ai account yet."
+                )
+            }
+
+            val me = try {
+                MaintainRepository(context).authApi(DEFAULT_SERVER_URL).me()
+            } catch (t: Throwable) {
+                clear()
+                throw IllegalStateException(
+                    "SESSION: Maintain.ai could not load the authenticated user. " + httpDetail(t),
+                    t
+                )
+            }
+
+            requireMaintainUser(me)
         }
     }
 
     private fun httpDetail(t: Throwable): String {
-        val http = t as? retrofit2.HttpException ?: return (t.message ?: "Unknown error").trim()
-        val raw = runCatching { http.response()?.errorBody()?.string().orEmpty() }.getOrDefault("")
+        val http = t as? retrofit2.HttpException
+            ?: return (t.message ?: "Unknown error").trim()
+        val raw = runCatching {
+            http.response()?.errorBody()?.string().orEmpty()
+        }.getOrDefault("")
         val detail = runCatching {
             org.json.JSONObject(raw).optString("detail").takeIf { it.isNotBlank() }
         }.getOrNull()
         return when {
-            !detail.isNullOrBlank() -> "HTTP ${http.code()}: $detail"
-            raw.isNotBlank() -> "HTTP ${http.code()}: $raw"
-            else -> "HTTP ${http.code()}: ${http.message()}"
+            !detail.isNullOrBlank() -> "HTTP " + http.code() + ": " + detail
+            raw.isNotBlank() -> "HTTP " + http.code() + ": " + raw
+            else -> "HTTP " + http.code() + ": " + http.message()
         }
     }
 }
