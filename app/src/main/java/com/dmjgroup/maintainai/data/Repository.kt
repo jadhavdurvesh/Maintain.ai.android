@@ -34,12 +34,9 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun getSupabaseConfig(): Pair<String, String> {
-        return context.settingsDataStore.data.map { prefs ->
-            (prefs[SUPABASE_URL_PREF] ?: BuildConfig.SUPABASE_URL) to
-                (prefs[SUPABASE_KEY_PREF] ?: BuildConfig.SUPABASE_PUBLISHABLE_KEY)
-        }.let { flow ->
-            kotlinx.coroutines.flow.first(flow)
-        }
+        val prefs = context.settingsDataStore.data.first()
+        return (prefs[SUPABASE_URL_PREF] ?: BuildConfig.SUPABASE_URL) to
+            (prefs[SUPABASE_KEY_PREF] ?: BuildConfig.SUPABASE_PUBLISHABLE_KEY)
     }
 
     suspend fun setServerUrl(url: String) {
