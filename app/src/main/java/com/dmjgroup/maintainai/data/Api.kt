@@ -5,6 +5,7 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.Path
 
+data class SupabasePublicConfigResponse(val supabase_url: String, val supabase_publishable_key: String)
 data class SupabaseLoginRequest(val email: String, val password: String)
 data class SupabaseRefreshRequest(val refresh_token: String)
 data class SupabaseSyncRequest(
