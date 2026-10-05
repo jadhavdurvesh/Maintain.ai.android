@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.dmjgroup.maintainai.BuildConfig
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.map
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -174,13 +175,20 @@ class AuthRepository(private val context: Context) {
             val supabaseApi = MaintainRepository(context).authApi(BuildConfig.SUPABASE_URL)
 
             val response = try {
-                supabaseApi.supabaseLogin(SupabaseLoginRequest(email, password))
+                withTimeout(10_000L) {
+                    supabaseApi.supabaseLogin(SupabaseLoginRequest(email, password))
+                }
             } catch (t: Throwable) {
-                throw IllegalStateException("AUTHENTICATION: Supabase sign-in failed. ${httpDetail(t)}", t)
+                val detail = if (t is kotlinx.coroutines.TimeoutCancellationException) {
+                    "Supabase did not respond within 10 seconds."
+                } else {
+                    httpDetail(t)
+                }
+                throw IllegalStateException("AUTHENTICATION: Supabase sign-in failed. ${detail}", t)
             }
 
             val accessToken = response.access_token
-                ?: throw IllegalStateException("AUTHENTICATION: Supabase did not return an access token.")
+                ?: throw IllegalStateException("AUTHENTICATION: Supabase returned a response without an access token.")
 
             save(accessToken, response.refresh_token)
 
