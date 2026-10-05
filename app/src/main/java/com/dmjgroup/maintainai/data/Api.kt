@@ -20,6 +20,7 @@ data class RealtimeTokenResponse(val access_token: String, val expires_in: Int =
 
 interface MaintainApi {
     @retrofit2.http.POST("api/auth/supabase/sync") suspend fun syncSupabase(@Body payload: SupabaseSyncRequest = SupabaseSyncRequest()): Map<String, Any?>
+    @GET("api/auth/public-config") suspend fun publicSupabaseConfig(): SupabasePublicConfigResponse
     @GET("api/auth/me") suspend fun me(): AuthMeResponse
     @retrofit2.http.POST("api/auth/realtime-token") suspend fun realtimeToken(): RealtimeTokenResponse
     @retrofit2.http.POST("api/auth/password-change") suspend fun changePassword(@Body request: Map<String, String>): Map<String, Any?>
