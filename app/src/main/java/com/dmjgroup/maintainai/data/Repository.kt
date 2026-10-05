@@ -184,34 +184,52 @@ class AuthRepository(private val context: Context) {
 
             save(accessToken, response.refresh_token)
 
+            // Existing Maintain.ai users should be able to enter directly
+            // through the authoritative /me endpoint. Sync is only a fallback
+            // for accounts that still need their Supabase identity linked.
             val backendApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
 
             try {
-                backendApi.syncSupabase()
-            } catch (t: Throwable) {
-                clear()
-                throw IllegalStateException(
-                    "AUTHORIZATION: Maintain.ai rejected Android access. ${httpDetail(t)}",
-                    t
-                )
-            }
+                return@runCatching backendApi.me().also { me ->
+                    require(me.organization_id != null && !me.username.isNullOrBlank()) {
+                        "SESSION: The Supabase account is not linked to a MAINTAIN AI organization."
+                    }
+                }
+            } catch (first: Throwable) {
+                val syncResult = try {
+                    backendApi.syncSupabase()
+                } catch (sync: Throwable) {
+                    clear()
+                    throw IllegalStateException(
+                        "AUTHORIZATION: Maintain.ai application access failed. " +
+                            "Initial session: ${httpDetail(first)}; sync: ${httpDetail(sync)}",
+                        sync
+                    )
+                }
 
-            val me = try {
-                backendApi.me()
-            } catch (t: Throwable) {
-                clear()
-                throw IllegalStateException(
-                    "SESSION: Maintain.ai could not restore your account. ${httpDetail(t)}",
-                    t
-                )
-            }
+                val needsOnboarding = syncResult["needs_onboarding"] == true
+                if (needsOnboarding) {
+                    clear()
+                    throw IllegalStateException(
+                        "AUTHORIZATION: This Supabase account is not linked to a Maintain.ai account yet."
+                    )
+                }
 
-            require(me.organization_id != null && !me.username.isNullOrBlank()) {
-                clear()
-                "SESSION: The Supabase account is not linked to a MAINTAIN AI organization."
+                try {
+                    backendApi.me().also { me ->
+                        require(me.organization_id != null && !me.username.isNullOrBlank()) {
+                            "SESSION: The Supabase account is not linked to a MAINTAIN AI organization."
+                        }
+                    }
+                } catch (second: Throwable) {
+                    clear()
+                    throw IllegalStateException(
+                        "SESSION: Maintain.ai could not restore your account. " +
+                            "Initial session: ${httpDetail(first)}; after sync: ${httpDetail(second)}",
+                        second
+                    )
+                }
             }
-
-            me
         }
     }
 
