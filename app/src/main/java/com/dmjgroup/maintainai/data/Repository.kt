@@ -170,21 +170,61 @@ class AuthRepository(private val context: Context) {
             return Result.failure(IllegalStateException("Supabase configuration is missing from this Android build."))
         }
 
-        val supabaseApi = MaintainRepository(context).authApi(BuildConfig.SUPABASE_URL)
-        val response = supabaseApi.supabaseLogin(SupabaseLoginRequest(email, password))
-        val accessToken = response.access_token
-            ?: return Result.failure(IllegalStateException("Supabase did not return an access token."))
-
-        save(accessToken, response.refresh_token)
-
-        val backendApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
         return runCatching {
-            backendApi.syncSupabase()
-            val me = backendApi.me()
-            require(me.organization_id != null && !me.username.isNullOrBlank()) {
-                "The Supabase account is not linked to a MAINTAIN AI organization."
+            val supabaseApi = MaintainRepository(context).authApi(BuildConfig.SUPABASE_URL)
+
+            val response = try {
+                supabaseApi.supabaseLogin(SupabaseLoginRequest(email, password))
+            } catch (t: Throwable) {
+                throw IllegalStateException("AUTHENTICATION: Supabase sign-in failed. ${httpDetail(t)}", t)
             }
+
+            val accessToken = response.access_token
+                ?: throw IllegalStateException("AUTHENTICATION: Supabase did not return an access token.")
+
+            save(accessToken, response.refresh_token)
+
+            val backendApi = MaintainRepository(context).authApi(DEFAULT_SERVER_URL)
+
+            try {
+                backendApi.syncSupabase()
+            } catch (t: Throwable) {
+                clear()
+                throw IllegalStateException(
+                    "AUTHORIZATION: Maintain.ai rejected Android access. ${httpDetail(t)}",
+                    t
+                )
+            }
+
+            val me = try {
+                backendApi.me()
+            } catch (t: Throwable) {
+                clear()
+                throw IllegalStateException(
+                    "SESSION: Maintain.ai could not restore your account. ${httpDetail(t)}",
+                    t
+                )
+            }
+
+            require(me.organization_id != null && !me.username.isNullOrBlank()) {
+                clear()
+                "SESSION: The Supabase account is not linked to a MAINTAIN AI organization."
+            }
+
             me
+        }
+    }
+
+    private fun httpDetail(t: Throwable): String {
+        val http = t as? retrofit2.HttpException ?: return (t.message ?: "Unknown error").trim()
+        val raw = runCatching { http.response()?.errorBody()?.string().orEmpty() }.getOrDefault("")
+        val detail = runCatching {
+            org.json.JSONObject(raw).optString("detail").takeIf { it.isNotBlank() }
+        }.getOrNull()
+        return when {
+            !detail.isNullOrBlank() -> "HTTP ${http.code()}: $detail"
+            raw.isNotBlank() -> "HTTP ${http.code()}: $raw"
+            else -> "HTTP ${http.code()}: ${http.message()}"
         }
     }
 }
