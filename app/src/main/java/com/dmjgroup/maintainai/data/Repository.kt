@@ -8,6 +8,7 @@ import com.dmjgroup.maintainai.BuildConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
