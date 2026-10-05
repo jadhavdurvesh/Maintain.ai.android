@@ -16,12 +16,30 @@ import java.util.concurrent.TimeUnit
 
 private val Context.settingsDataStore by preferencesDataStore("settings")
 private val SERVER_URL = stringPreferencesKey("server_url")
+private val SUPABASE_URL_PREF = stringPreferencesKey("supabase_url")
+private val SUPABASE_KEY_PREF = stringPreferencesKey("supabase_publishable_key")
 
 val DEFAULT_SERVER_URL: String = BuildConfig.MAINTAIN_API_URL.let { if (it.endsWith("/")) it else "$it/" }
 const val APPLICATION_ID = "android"
 
 class SettingsRepository(private val context: Context) {
     val serverUrl: Flow<String> = context.settingsDataStore.data.map { it[SERVER_URL] ?: DEFAULT_SERVER_URL }
+
+    suspend fun setSupabaseConfig(url: String, key: String) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[SUPABASE_URL_PREF] = url.trim().trimEnd('/')
+            prefs[SUPABASE_KEY_PREF] = key.trim()
+        }
+    }
+
+    suspend fun getSupabaseConfig(): Pair<String, String> {
+        return context.settingsDataStore.data.map { prefs ->
+            (prefs[SUPABASE_URL_PREF] ?: BuildConfig.SUPABASE_URL) to
+                (prefs[SUPABASE_KEY_PREF] ?: BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+        }.let { flow ->
+            kotlinx.coroutines.flow.first(flow)
+        }
+    }
 
     suspend fun setServerUrl(url: String) {
         val normalized = url.trim().ifEmpty { DEFAULT_SERVER_URL }.let {
@@ -42,8 +60,13 @@ class MaintainRepository(private val context: Context? = null) {
             .callTimeout(30, TimeUnit.SECONDS)
             .addInterceptor { chain ->
                 val requestUrl = chain.request().url.toString()
-                val isSupabase = BuildConfig.SUPABASE_URL.isNotBlank() &&
-                    requestUrl.startsWith(BuildConfig.SUPABASE_URL.trimEnd('/') + "/")
+                val supabaseConfig = context?.getSharedPreferences("maintain_auth", Context.MODE_PRIVATE)
+                val configuredSupabaseUrl = supabaseConfig?.getString("supabase_url", null)?.trimEnd('/')
+                    ?: BuildConfig.SUPABASE_URL.trimEnd('/')
+                val configuredSupabaseKey = supabaseConfig?.getString("supabase_publishable_key", null)
+                    ?: BuildConfig.SUPABASE_PUBLISHABLE_KEY
+                val isSupabase = configuredSupabaseUrl.isNotBlank() &&
+                    requestUrl.startsWith(configuredSupabaseUrl + "/")
 
                 // Read the token for every request, not when the Retrofit client
                 // is created. This is important immediately after Supabase login
@@ -54,7 +77,7 @@ class MaintainRepository(private val context: Context? = null) {
 
                 val request = chain.request().newBuilder().apply {
                     if (isSupabase && BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()) {
-                        header("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                        header("apikey", configuredSupabaseKey)
                     }
 
                     if (!isSupabase) {
@@ -148,11 +171,29 @@ class AuthRepository(private val context: Context) {
         prefs.edit().remove("token").remove("refresh_token").apply()
     }
 
+    private suspend fun ensureSupabaseConfig(): Pair<String, String> {
+        val authPrefs = context.getSharedPreferences("maintain_auth", Context.MODE_PRIVATE)
+        val cachedUrl = authPrefs.getString("supabase_url", null)?.trim()?.trimEnd('/')
+        val cachedKey = authPrefs.getString("supabase_publishable_key", null)?.trim()
+        if (!cachedUrl.isNullOrBlank() && !cachedKey.isNullOrBlank()) return cachedUrl to cachedKey
+
+        val config = MaintainRepository(context).publicSupabaseConfig(DEFAULT_SERVER_URL)
+        require(config.supabase_url.isNotBlank() && config.supabase_publishable_key.isNotBlank()) {
+            "AUTHENTICATION: The backend did not return valid Supabase configuration."
+        }
+        authPrefs.edit()
+            .putString("supabase_url", config.supabase_url.trim().trimEnd('/'))
+            .putString("supabase_publishable_key", config.supabase_publishable_key.trim())
+            .apply()
+        return config.supabase_url.trim().trimEnd('/') to config.supabase_publishable_key.trim()
+    }
+
     private suspend fun refreshAccessToken(): Boolean {
         val refresh = refreshToken() ?: return false
+        val (supabaseUrl, _) = ensureSupabaseConfig()
         return runCatching {
             val response = MaintainRepository(context)
-                .authApi(BuildConfig.SUPABASE_URL)
+                .authApi(supabaseUrl)
                 .supabaseRefresh(SupabaseRefreshRequest(refresh))
             val nextToken = response.access_token ?: return@runCatching false
             save(nextToken, response.refresh_token ?: refresh)
@@ -168,10 +209,6 @@ class AuthRepository(private val context: Context) {
     }
 
     suspend fun session(): Result<AuthMeResponse> {
-        if (BuildConfig.SUPABASE_URL.isBlank() || BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) {
-            return Result.failure(IllegalStateException("AUTHENTICATION: Supabase configuration is missing from this Android build."))
-        }
-
         return runCatching {
             if (refreshToken() != null) refreshAccessToken()
 
@@ -222,9 +259,10 @@ class AuthRepository(private val context: Context) {
         }
 
         return runCatching {
+            val (supabaseUrl, _) = ensureSupabaseConfig()
             val response = try {
                 withTimeout(15_000L) {
-                    MaintainRepository(context).authApi(BuildConfig.SUPABASE_URL)
+                    MaintainRepository(context).authApi(supabaseUrl)
                         .supabaseLogin(SupabaseLoginRequest(email.trim(), password))
                 }
             } catch (t: Throwable) {
