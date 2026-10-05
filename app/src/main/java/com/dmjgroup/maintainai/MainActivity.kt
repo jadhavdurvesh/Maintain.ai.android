@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -115,14 +116,17 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
         try {
             val result = try {
                 loginStatus = "Authenticating with Supabase…"
+                Log.d("YantraChikitsaAuth", "Starting Supabase sign-in")
                 auth.login(email.trim(), password)
             } catch (t: Throwable) {
+                Log.e("YantraChikitsaAuth", "Unexpected login exception", t)
                 Result.failure<AuthMeResponse>(t)
             }
 
             result.fold(
                 onSuccess = { me ->
-                    loginStatus = "Authentication accepted. Opening MAINTAIN AI…"
+                    loginStatus = "Authentication accepted. Opening YantraChikitsa…"
+                    Log.d("YantraChikitsaAuth", "Authentication and account sync succeeded")
                     passwordChangeRequired = me.password_change_required == true
                     authenticated = !passwordChangeRequired
                     initializing = false
@@ -136,17 +140,18 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
                     }
                 },
                 onFailure = { t ->
+                    Log.e("YantraChikitsaAuth", "Login failed", t)
                     auth.clear()
                     authenticated = false
                     passwordChangeRequired = false
                     initializing = false
                     val message = friendlyAuthError(t)
                     error = if (message.isBlank()) {
-                        "Sign in failed without a server error. Please try again."
+                        "Sign in failed. Check your connection and try again. Diagnostic: " + t.javaClass.simpleName
                     } else {
                         message
                     }
-                    loginStatus = null
+                    loginStatus = "Sign-in failed"
                 }
             )
         } catch (t: Throwable) {
@@ -388,14 +393,14 @@ private fun LoginScreen(vm: MainViewModel) {
 
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    "MAINTAIN AI",
+                    "YantraChikitsa",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = TextPrimary
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    "Industrial maintenance intelligence",
+                    "Intelligent industrial maintenance",
                     color = TextMuted,
                     style = MaterialTheme.typography.bodyMedium
                 )
