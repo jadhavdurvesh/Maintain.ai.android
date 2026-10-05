@@ -144,6 +144,12 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
         val combined = listOf(serverDetail, message).filter { it.isNotBlank() }.joinToString(" — ")
 
         return when {
+            message.startsWith("AUTHENTICATION:", ignoreCase = true) ->
+                message
+            message.startsWith("AUTHORIZATION:", ignoreCase = true) ->
+                message
+            message.startsWith("SESSION:", ignoreCase = true) ->
+                message
             message.contains("Unable to resolve host", ignoreCase = true) ->
                 "Unable to reach the MAINTAIN AI server. Check your connection."
             message.contains("timeout", ignoreCase = true) ->
