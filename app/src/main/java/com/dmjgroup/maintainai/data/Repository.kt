@@ -80,6 +80,9 @@ class MaintainRepository(private val context: Context? = null) {
 
     fun authApi(baseUrl: String): MaintainApi = api(baseUrl)
 
+    suspend fun publicSupabaseConfig(baseUrl: String): SupabasePublicConfigResponse =
+        api(baseUrl).publicSupabaseConfig()
+
     suspend fun load(baseUrl: String): DashboardData {
         val api = api(baseUrl)
         val machines = api.getMachines()
