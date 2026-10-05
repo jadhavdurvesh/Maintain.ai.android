@@ -105,32 +105,59 @@ class MainViewModel(application: android.app.Application) : AndroidViewModel(app
     var initializing by mutableStateOf(true); private set
     var passwordChangeRequired by mutableStateOf(false); private set
     var loginBusy by mutableStateOf(false); private set
+    var loginStatus by mutableStateOf<String?>(null); private set
 
     fun login(email: String, password: String) = viewModelScope.launch {
         if (loginBusy) return@launch
         error = null
+        loginStatus = "Connecting to authentication service…"
         loginBusy = true
         try {
-            val result = runCatching { auth.login(email.trim(), password) }
-                .getOrElse { Result.failure(it) }
-            result.onSuccess { me ->
-                passwordChangeRequired = me.password_change_required == true
-                authenticated = !passwordChangeRequired
-                initializing = false
-                if (!passwordChangeRequired) refresh()
-            }.onFailure {
-                auth.clear()
-                authenticated = false
-                passwordChangeRequired = false
-                initializing = false
-                error = friendlyAuthError(it)
+            val result = try {
+                loginStatus = "Authenticating with Supabase…"
+                auth.login(email.trim(), password)
+            } catch (t: Throwable) {
+                Result.failure<AuthMeResponse>(t)
             }
+
+            result.fold(
+                onSuccess = { me ->
+                    loginStatus = "Authentication accepted. Opening MAINTAIN AI…"
+                    passwordChangeRequired = me.password_change_required == true
+                    authenticated = !passwordChangeRequired
+                    initializing = false
+
+                    if (passwordChangeRequired) {
+                        loginStatus = null
+                    } else {
+                        startRealtime()
+                        refresh()
+                        loginStatus = null
+                    }
+                },
+                onFailure = { t ->
+                    auth.clear()
+                    authenticated = false
+                    passwordChangeRequired = false
+                    initializing = false
+                    val message = friendlyAuthError(t)
+                    error = if (message.isBlank()) {
+                        "Sign in failed without a server error. Please try again."
+                    } else {
+                        message
+                    }
+                    loginStatus = null
+                }
+            )
         } catch (t: Throwable) {
             auth.clear()
             authenticated = false
             passwordChangeRequired = false
             initializing = false
-            error = friendlyAuthError(t)
+            error = friendlyAuthError(t).ifBlank {
+                "Sign in failed without a server error. Please try again."
+            }
+            loginStatus = null
         } finally {
             loginBusy = false
         }
@@ -474,6 +501,16 @@ private fun LoginScreen(vm: MainViewModel) {
                             ),
                             shape = RoundedCornerShape(14.dp)
                         )
+
+                        vm.loginStatus?.let {
+                            Spacer(Modifier.height(14.dp))
+                            Text(
+                                it,
+                                color = Cyan,
+                                style = MaterialTheme.typography.bodySmall,
+                                lineHeight = 18.sp
+                            )
+                        }
 
                         vm.error?.let {
                             Spacer(Modifier.height(14.dp))
